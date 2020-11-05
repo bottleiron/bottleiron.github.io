@@ -58,13 +58,6 @@
             if(currentToken){
               console.log('[InstanceID Token] 발행완료: ', currentToken);
               myToken = currentToken;
-              var t = document.createElement("textarea");
-              document.body.appendChild(t);
-              t.value = currentToken;
-              t.select();
-              document.execCommand('copy');
-              document.body.removeChild(t);
-
             }else{
               console.log('[InstanceID Token] 발행 실패');
             }
@@ -88,6 +81,13 @@
     }
 
     function serviceWorkerLoad(){
+      var t = document.createElement("textarea");
+              document.body.appendChild(t);
+              t.value = myToken;
+              t.select();
+              document.execCommand('copy');
+              document.body.removeChild(t);
+
       alert(myToken)
     }
 
