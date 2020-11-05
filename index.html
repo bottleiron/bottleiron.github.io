@@ -18,6 +18,8 @@
   <!-- The core Firebase JS SDK is always required and must be listed first -->
   <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-messaging.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-analytics.js"></script>
+
   <script
   src="https://code.jquery.com/jquery-3.5.1.js"
   integrity="sha256-QWo7LDvxbWT2tbbQ97B53yJnYU3WhH/C8ycbRAkjPDc="
@@ -37,10 +39,12 @@
       projectId: "plantypwa",
       storageBucket: "plantypwa.appspot.com",
       messagingSenderId: "443926934147",
-      appId: "1:443926934147:web:4e19fa97ff6665c54fe1b6"
+      appId: "1:443926934147:web:4e19fa97ff6665c54fe1b6",
+      measurementId: "G-RJR94BT3QK"
       };
       // Initialize Firebase
       firebase.initializeApp(firebaseConfig);
+      firebase.analytics();
 
       //Messaging 서비스 활성화
       var messaging = firebase.messaging();
