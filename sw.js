@@ -31,10 +31,11 @@ self.addEventListener('push', function (event)
 {
     console.log('[ServiceWorker] 푸시알림 수신: ', event);
 
-    console.log(event.data)
+    var result = event.data.json();
+    console.log(result);
     //Push 정보 조회
-    var title = event.data.title || 'test';
-    var body = event.data.body;
+    var title = result.title || 'test';
+    var body = result.body;
     var icon = event.data.icon || 'images/hello-icon-512.png'; //512x512
     var badge = event.data.badge || 'images/hello-icon-128.png'; //128x128
     var options = {
