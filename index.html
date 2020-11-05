@@ -18,11 +18,16 @@
   <!-- The core Firebase JS SDK is always required and must be listed first -->
   <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-messaging.js"></script>
+  <script
+  src="https://code.jquery.com/jquery-3.5.1.js"
+  integrity="sha256-QWo7LDvxbWT2tbbQ97B53yJnYU3WhH/C8ycbRAkjPDc="
+  crossorigin="anonymous"></script>
 
   <!-- TODO: Add SDKs for Firebase products that you want to use
      https://firebase.google.com/docs/web/setup#available-libraries -->
 
   <script>
+    const myToken = ""; 
     function initFirebase(serviceWorkRegistration){
       // Your web app's Firebase configuration
       var firebaseConfig = {
@@ -48,8 +53,7 @@
           {
             if(currentToken){
               console.log('[InstanceID Token] 발행완료: ', currentToken);
-              alert(currentToken);
-
+              myToken = currentToken;
               var t = document.createElement("textarea");
               document.body.appendChild(t);
               t.value = currentToken;
