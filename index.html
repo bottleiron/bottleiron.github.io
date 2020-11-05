@@ -15,11 +15,67 @@
   <meta name="apple-mobile-web-app-title" content="Hello World">
   <meta name="msapplication-TileImage" content="images/hello-icon-144.png">
   <meta name="msapplication-TileColor" content="#FFFFFF">
+  <!-- The core Firebase JS SDK is always required and must be listed first -->
+  <script src="https://www.gstatic.com/firebasejs/8.0.0/firebase-app.js"></script>
+
+  <!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#available-libraries -->
+
+  <script>
+    function initFirebase(serviceWorkRegistration){
+      // Your web app's Firebase configuration
+      var firebaseConfig = {
+      apiKey: "AIzaSyAUoI5jo0NG59dHeRDZzaWLKGXqYHQzhic",
+      authDomain: "plantypwa.firebaseapp.com",
+      databaseURL: "https://plantypwa.firebaseio.com",
+      projectId: "plantypwa",
+      storageBucket: "plantypwa.appspot.com",
+      messagingSenderId: "443926934147",
+      appId: "1:443926934147:web:4e19fa97ff6665c54fe1b6"
+      };
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      firebase.analytics();
+
+      //Messaging 서비스 활성화
+      var messaging = firebase.messaging();
+      messaging.useServiceWorker(serviceWorkRegistration);
+      messaging.usePublicVapidKey("BDM-45KE7TlDs_9vv8O7cIqkoTbcspRYm4JEGZI9NJCw1ZVoGBP-XXOdcdr9eWIGJlymIXrMx4_EjB06PKu63wo");
+
+      //Instance ID Token 발급 요청
+      messaging.getToken()
+          .then((currentToken) =>
+          {
+            if(currentToken){
+              console.log('[InstanceID Token] 발행완료: ', currentToken);
+            }else{
+              console.log('[InstanceID Token] 발행 실패');
+            }
+          });
+      messaging.onTokenRefresh(() =>
+      {
+          messaging.getToken().then((refreshedToken) =>
+          {
+              console.log('[InstanceID Token] 갱신완료', refreshedToken);
+          })
+          .catch((err) =>
+          {
+              console.log('[InstanceID Token] 갱신실패', err);
+          });
+      });
+      messaging.onMessage((payload) =>
+      {
+          //Push Message 수신 시 호출되는 이벤트
+          console.log('[PushMessage] 수신: ', payload);
+      });
+    }
+  </script>
 </head>
 <body class="fullscreen">
   <div class="container">
     <h1 class="title">Hello World!</h1>
   </div>
   <script src="js/main.js"></script>
+  
 </body>
 </html>
