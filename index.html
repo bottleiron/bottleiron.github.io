@@ -27,7 +27,7 @@
      https://firebase.google.com/docs/web/setup#available-libraries -->
 
   <script>
-    const myToken = ""; 
+    var myToken = ""; 
     function initFirebase(serviceWorkRegistration){
       // Your web app's Firebase configuration
       var firebaseConfig = {
@@ -84,11 +84,7 @@
     }
 
     function serviceWorkerLoad(){
-      navigator.serviceWorker
-             .register('./sw.js').then(function (registration)
-             {
-                initFirebase(registration)
-             });
+      alert(myToken)
     }
 
   </script>
