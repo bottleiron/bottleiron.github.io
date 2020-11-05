@@ -30,6 +30,8 @@ self.addEventListener('fetch', function(e) {
 self.addEventListener('push', function (event)
 {
     console.log('[ServiceWorker] 푸시알림 수신: ', event);
+
+    console.log(event.data)
  
     //Push 정보 조회
     var title = event.data.title || 'push';
