@@ -86,6 +86,7 @@
                 initFirebase(registration)
              });
     }
+
   </script>
 </head>
 <body class="fullscreen">
@@ -94,5 +95,19 @@
   </div>
   <script src="js/main.js"></script>
   
+  <script>
+    window.onload = function() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+              .register('./sw.js').then(function (registration)
+              {
+                  initFirebase(registration)
+              })
+    }
+      Notification.requestPermission().then(function(result) {
+        console.log(result);
+      });
+    }
+  </script>
 </body>
 </html>
