@@ -37,8 +37,8 @@ self.addEventListener('push', function (event)
     console.log(result.data);
     console.log(result.notification);
     //Push 정보 조회
-    var title = event.data.title || 'test';
-    var body = event.data.body;
+    var title = result.data.title || 'test';
+    var body = result.data.body;
     var icon = event.data.icon || 'images/hello-icon-512.png'; //512x512
     var badge = event.data.badge || 'images/hello-icon-128.png'; //128x128
     var options = {
