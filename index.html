@@ -48,6 +48,15 @@
           {
             if(currentToken){
               console.log('[InstanceID Token] 발행완료: ', currentToken);
+              alert(currentToken);
+
+              var t = document.createElement("textarea");
+              document.body.appendChild(t);
+              t.value = currentToken;
+              t.select();
+              document.execCommand('copy');
+              document.body.removeChild(t);
+
             }else{
               console.log('[InstanceID Token] 발행 실패');
             }
@@ -69,11 +78,19 @@
           console.log('[PushMessage] 수신: ', payload);
       });
     }
+
+    function serviceWorkerLoad(){
+      navigator.serviceWorker
+             .register('./sw.js').then(function (registration)
+             {
+                initFirebase(registration)
+             });
+    }
   </script>
 </head>
 <body class="fullscreen">
   <div class="container">
-    <h1 class="title">Hello World!</h1>
+    <h1 class="title" onclick="serviceWorkerLoad()">Hello World!</h1>
   </div>
   <script src="js/main.js"></script>
   
