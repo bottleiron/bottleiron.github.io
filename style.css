@@ -600,11 +600,15 @@ body {
 }
 
 .cal-amount {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--accent);
     font-weight: 700;
     text-align: center;
-    word-break: break-all;
+    white-space: nowrap;
+    letter-spacing: -0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
 }
 
 /* --- Stats View --- */
