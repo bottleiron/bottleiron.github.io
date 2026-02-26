@@ -95,11 +95,7 @@ const auth = {
             sessionStorage.setItem("geminiKey", decryptedGemini);
             sessionStorage.setItem("githubPat", decryptedGithub);
 
-            this.switchScreen('chat-screen');
-            // 채팅창 로드 완료 후 app.js 내 필요한 초기화 콜백 호출
-            if (typeof app !== 'undefined' && typeof app.init === 'function') {
-                app.init();
-            }
+            this.switchScreen('user-select-screen');
 
         } catch (e) {
             console.error(e);
@@ -110,8 +106,17 @@ const auth = {
     logout() {
         sessionStorage.removeItem("geminiKey");
         sessionStorage.removeItem("githubPat");
+        sessionStorage.removeItem("currentUser");
         this.clearParams();
         this.switchScreen('lock-screen');
+    },
+
+    selectUser(userName) {
+        sessionStorage.setItem("currentUser", userName);
+        this.switchScreen('chat-screen');
+        if (typeof app !== 'undefined' && typeof app.init === 'function') {
+            app.init();
+        }
     },
 
     switchScreen(screenId) {
@@ -122,9 +127,13 @@ const auth = {
     // 초기 실행 시 이미 세션이 있으면 통과
     checkSession() {
         if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat")) {
-            this.switchScreen('chat-screen');
-            if (typeof app !== 'undefined' && typeof app.init === 'function') {
-                app.init();
+            if (sessionStorage.getItem("currentUser")) {
+                this.switchScreen('chat-screen');
+                if (typeof app !== 'undefined' && typeof app.init === 'function') {
+                    app.init();
+                }
+            } else {
+                this.switchScreen('user-select-screen');
             }
         }
     }

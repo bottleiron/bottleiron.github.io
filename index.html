@@ -46,6 +46,25 @@
         </div>
     </div>
 
+    <!-- User Selection Screen -->
+    <div id="user-select-screen" class="screen">
+        <div class="user-select-container">
+            <h1 class="title">사용자 선택</h1>
+            <p class="subtitle">누구의 지출을 기록할까요?</p>
+            <div class="user-cards">
+                <button class="user-card" onclick="auth.selectUser('병철')">
+                    <div class="avatar bg-blue">병</div>
+                    <span>병철</span>
+                </button>
+                <button class="user-card" onclick="auth.selectUser('시유')">
+                    <div class="avatar bg-pink">시</div>
+                    <span>시유</span>
+                </button>
+            </div>
+            <button class="logout-text-btn" onclick="auth.logout()">처음으로 돌아가기</button>
+        </div>
+    </div>
+
     <!-- Main Chat Interface (App Container wrapped in chat-screen for auth.js compatibility) -->
     <div id="chat-screen" class="screen">
         <div id="app-container">

@@ -1,6 +1,6 @@
 {
-  "name": "시유 가계부 AI",
-  "short_name": "시유가계부",
+  "name": "슈가게부",
+  "short_name": "슈가게부",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#b2c7d9",

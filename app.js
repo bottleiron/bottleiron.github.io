@@ -19,11 +19,13 @@ const app = {
     currentDate: new Date(),
     ledgerData: [],
     selectedDate: null, // For modal
+    currentUser: "사용자",
 
     init() {
         this.geminiKey = sessionStorage.getItem("geminiKey");
         this.githubPat = sessionStorage.getItem("githubPat");
-        console.log("app.init() called");
+        this.currentUser = sessionStorage.getItem("currentUser") || "사용자";
+        console.log("app.init() called, user:", this.currentUser);
         this.chatWindow = document.getElementById('chat-window');
         this.userInput = document.getElementById('user-input');
 
@@ -311,7 +313,7 @@ const app = {
             date: this.selectedDate,
             amount: amount,
             place: place,
-            payer: "사용자", // default
+            payer: this.currentUser,
             category: category
         };
 
@@ -465,6 +467,7 @@ const app = {
         const prompt = `
 당신은 가계부 작성 AI 비서입니다.
 오늘 날짜는 ${today} 입니다. 날짜가 '오늘', '어제' 등으로 오면 이를 계산하세요.
+현재 사용자는 "${this.currentUser}" 입니다. 별도로 결제자를 지정하지 않으면 결제자는 "${this.currentUser}"(으)로 설정하세요.
 사용자의 입력을 분석하여 다음 세 가지 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
 
 1. 지출 내역 추가 (intent: "ADD")
