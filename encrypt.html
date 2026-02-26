@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>가계부 토큰 암호화 도구</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            margin: auto;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>🔒 API 키 암호화 도구</h2>
+        <p>코딩할 때 사용할 '암호화된 문자열'을 생성합니다.</p>
+
+        <label>비밀번호 (PIN 번호, 예: 0201)</label>
+        <input type="text" id="pin" placeholder="결혼기념일 등 기억하기 쉬운 번호">
+
+        <label>Gemini API Key</label>
+        <input type="text" id="gemini" placeholder="AI Studio에서 발급받은 키">
+
+        <label>GitHub PAT (Personal Access Token)</label>
+        <input type="text" id="github" placeholder="GitHub에서 발급받은 토큰">
+
+        <button onclick="encryptKeys()">암호화 실행</button>
+
+        <hr style="margin: 20px 0;">
+
+        <h3>👇 코드에 복사해 넣을 값 👇</h3>
+        <label>암호화된 Gemini Key</label>
+        <textarea id="encGemini" rows="3" readonly placeholder="여기에 결과가 나옵니다"></textarea>
+
+        <label>암호화된 GitHub PAT</label>
+        <textarea id="encGithub" rows="3" readonly placeholder="여기에 결과가 나옵니다"></textarea>
+    </div>
+
+    <script>
+        function encryptKeys() {
+            const pin = document.getElementById('pin').value;
+            const gemini = document.getElementById('gemini').value;
+            const github = document.getElementById('github').value;
+
+            if (!pin || !gemini || !github) {
+                alert('빈칸을 모두 채워주세요!');
+                return;
+            }
+
+            // AES 암호화 진행
+            const encGemini = CryptoJS.AES.encrypt(gemini, pin).toString();
+            const encGithub = CryptoJS.AES.encrypt(github, pin).toString();
+
+            // 결과 출력
+            document.getElementById('encGemini').value = encGemini;
+            document.getElementById('encGithub').value = encGithub;
+        }
+    </script>
+</body>
+
+</html>

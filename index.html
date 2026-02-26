@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>시유 가계부</title>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="./manifest.json">
+    <!-- CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link rel="stylesheet" href="./style.css">
+    <!-- Google Fonts for typography -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <!-- Lock Screen -->
+    <div id="lock-screen" class="screen active">
+        <div class="lock-container">
+            <h1 class="title">비밀번호 입력</h1>
+            <p class="subtitle">가계부를 열려면 PIN 번호를 입력하세요</p>
+            <div class="pin-display">
+                <div class="dot" id="dot-1"></div>
+                <div class="dot" id="dot-2"></div>
+                <div class="dot" id="dot-3"></div>
+                <div class="dot" id="dot-4"></div>
+            </div>
+            <div class="keypad">
+                <button class="key" onclick="auth.inputNum(1)">1</button>
+                <button class="key" onclick="auth.inputNum(2)">2</button>
+                <button class="key" onclick="auth.inputNum(3)">3</button>
+                <button class="key" onclick="auth.inputNum(4)">4</button>
+                <button class="key" onclick="auth.inputNum(5)">5</button>
+                <button class="key" onclick="auth.inputNum(6)">6</button>
+                <button class="key" onclick="auth.inputNum(7)">7</button>
+                <button class="key" onclick="auth.inputNum(8)">8</button>
+                <button class="key" onclick="auth.inputNum(9)">9</button>
+                <button class="key action-key" onclick="auth.clearParams()">취소</button>
+                <button class="key" onclick="auth.inputNum(0)">0</button>
+                <button class="key action-key" onclick="auth.deleteNum()">⌫</button>
+            </div>
+            <p id="auth-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- Main Chat Interface (App Container wrapped in chat-screen for auth.js compatibility) -->
+    <div id="chat-screen" class="screen">
+        <div id="app-container">
+            <!-- Top Summary Header -->
+            <header id="app-header">
+                <div class="header-content">
+                    <div class="header-top">
+                        <span class="month-label">2026년 2월</span>
+                        <button class="logout-btn" onclick="auth.logout()">잠금</button>
+                    </div>
+                    <h1 class="total-amount">₩ 1,234,567</h1>
+                    <p class="summary-desc">이번 달 총 지출</p>
+                </div>
+            </header>
+
+            <!-- Main Content View -->
+            <main id="view-container">
+                <!-- Chat View (Default) -->
+                <section id="chat-view" class="view-active">
+                    <div id="chat-window" class="chat-window">
+                        <div class="message system-message">
+                            <span>오늘의 가계부 내역을 입력해보세요 😊</span>
+                        </div>
+                    </div>
+                    <div class="input-area">
+                        <input type="text" id="user-input" placeholder="메시지 입력..." autocomplete="off">
+                        <button id="send-btn" onclick="app.sendMessage()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Calendar View -->
+                <section id="calendar-view" class="view-hidden">
+                    <div class="calendar-header">
+                        <button class="nav-btn" onclick="app.changeMonth(-1)">&#10094;</button>
+                        <h2 id="calendar-month-label"></h2>
+                        <button class="nav-btn" onclick="app.changeMonth(1)">&#10095;</button>
+                    </div>
+                    <div class="calendar-weekdays">
+                        <div>일</div>
+                        <div>월</div>
+                        <div>화</div>
+                        <div>수</div>
+                        <div>목</div>
+                        <div>금</div>
+                        <div>토</div>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid">
+                        <!-- Days will be generated here -->
+                    </div>
+                </section>
+
+                <!-- Stats View -->
+                <section id="stats-view" class="view-hidden">
+                    <h2 class="stats-title">이번 달 분류별 지출</h2>
+                    <div class="stats-container">
+                        <div class="stats-chart" id="stats-chart">
+                            <!-- Bars will be generated here -->
+                        </div>
+                        <div class="stats-list" id="stats-list">
+                            <!-- List items will be generated here -->
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Daily Detail Modal -->
+            <div id="day-modal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modal-date-title">2026년 2월 26일</h3>
+                        <button class="close-btn" onclick="app.closeDayModal()">&times;</button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="expense-list-container">
+                            <h4 class="section-title">지출 내역</h4>
+                            <div id="modal-expense-list" class="expense-list">
+                                <!-- Items will be injected here -->
+                            </div>
+                        </div>
+
+                        <div class="add-expense-container">
+                            <h4 class="section-title">새 내역 추가</h4>
+                            <div class="add-form">
+                                <input type="text" id="add-place" placeholder="상호명 / 내역" />
+                                <div class="form-row">
+                                    <input type="number" id="add-amount" placeholder="금액 (원)" />
+                                    <select id="add-category">
+                                        <option value="식비">식비</option>
+                                        <option value="교통비">교통비</option>
+                                        <option value="쇼핑">쇼핑</option>
+                                        <option value="문화생활">문화생활</option>
+                                        <option value="모임">모임</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+                                <button class="add-btn" onclick="app.addExpenseFromModal()">추가하기</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Tab Bar -->
+            <nav id="bottom-tabs">
+                <button class="tab-item active" data-view="chat">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>채팅</span>
+                </button>
+                <button class="tab-item" data-view="calendar">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span>달력</span>
+                </button>
+                <button class="tab-item" data-view="stats">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>통계</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="./auth.js"></script>
+    <script src="./app.js"></script>
+</body>
+
+</html>
