@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <defs>
+        <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FF758C" />
+            <stop offset="100%" stop-color="#FF7EB3" />
+        </linearGradient>
+    </defs>
+
+    <rect width="512" height="512" rx="115" fill="url(#pinkGrad)" />
+
+    <text x="256" y="275" font-family="'Noto Sans KR', sans-serif" font-size="100" font-weight="900"
+        text-anchor="middle" fill="#ffffff" dominant-baseline="middle" letter-spacing="-2">
+        슈가게부
+    </text>
+</svg>
