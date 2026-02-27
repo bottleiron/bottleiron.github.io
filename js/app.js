@@ -731,12 +731,12 @@ ${ledgerStr}
             });
         }
 
-        modal.style.display = 'flex';
+        modal.classList.add('show');
     },
 
     closeFixedModal() {
         const modal = document.getElementById('fixed-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.remove('show');
     },
 
     deleteFixedExpense(id) {
