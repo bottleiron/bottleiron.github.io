@@ -89,7 +89,9 @@ export class GithubApi {
                     });
                     return items;
                 } catch (err) {
-                    console.error("Failed to fetch file:", file.path, err);
+                    if (err.status !== 404) {
+                        console.error("Failed to fetch file:", file.path, err);
+                    }
                     return [];
                 }
             });
