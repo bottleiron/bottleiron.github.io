@@ -839,16 +839,14 @@ ${ledgerStr}
     },
 
     payFixedExpense(fixedId, year, month) {
-        if (!confirm('이 고정 지출을 오늘 납부한 것으로 처리할까요?')) return;
+        if (!confirm('이 고정 지출을 납부한 것으로 처리할까요?')) return;
 
         const fixedItem = this.fixedExpenses.find(x => x.id === fixedId);
         if (!fixedItem) return;
 
-        const todayTimestamp = new Date();
-        const yyyy = todayTimestamp.getFullYear();
-        const mm = String(todayTimestamp.getMonth() + 1).padStart(2, '0');
-        const dd = String(todayTimestamp.getDate()).padStart(2, '0');
-        const formattedDate = `${yyyy}-${mm}-${dd}`;
+        const mm = String(month).padStart(2, '0');
+        const dd = String(fixedItem.pay_day).padStart(2, '0');
+        const formattedDate = `${year}-${mm}-${dd}`;
 
         const newExpense = {
             id: uuidv4(),
