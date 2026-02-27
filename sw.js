@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v1';
+const CACHE_NAME = 'sugar-gebu-v2';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
@@ -12,10 +12,12 @@ const URLS_TO_CACHE = [
 ];
 
 self.addEventListener('install', event => {
+    // 새 서비스워커가 바로 설치되도록 대기 중단
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('Opened cache');
+                console.log('Opened cache v2');
                 return cache.addAll(URLS_TO_CACHE);
             })
     );
@@ -32,20 +34,19 @@ self.addEventListener('activate', event => {
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim()) // 즉시 제어권 확보
     );
 });
 
 self.addEventListener('fetch', event => {
     // 1. GitHub API Call bypassing (Network Only)
-    // 데이터 변경 사항은 실시간으로 반영되어야 하며 잘못 캐싱될 경우 큰 충돌 이슈 야기
     if (event.request.url.includes('api.github.com') ||
         event.request.url.includes('generativelanguage.googleapis.com')) {
         event.respondWith(fetch(event.request));
         return;
     }
 
-    // 2. ESM.sh Bypassing (External CDN)
+    // 2. ESM.sh Bypassing (External CDN - Cache First)
     if (event.request.url.includes('esm.sh')) {
         event.respondWith(
             caches.match(event.request).then(response => {
@@ -60,15 +61,18 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // 3. App Shell (Cache First, fallback to Network)
+    // 3. App Shell (Network First)
+    // 항상 최신 코드를 사용자에게 먼저 시도하고, 오프라인이거나 실패 시 기존 캐시 사용
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-                return fetch(event.request);
+        fetch(event.request)
+            .then(networkResponse => {
+                return caches.open(CACHE_NAME).then(cache => {
+                    cache.put(event.request, networkResponse.clone());
+                    return networkResponse;
+                });
+            })
+            .catch(() => {
+                return caches.match(event.request);
             })
     );
 });
