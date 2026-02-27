@@ -177,4 +177,50 @@ export class GithubApi {
             await this.octokit.rest.repos.createOrUpdateFileContents(params);
         }
     }
+
+    // ==========================================
+    // FIXED EXPENSES (SETTINGS)
+    // ==========================================
+
+    async getFixedExpenses() {
+        const path = `${BASE_DATA_PATH}/settings/fixed_expenses.json`;
+        try {
+            const { data } = await this.octokit.rest.repos.getContent({
+                owner: this.owner,
+                repo: this.repo,
+                path: path,
+            });
+            const content = decodeURIComponent(escape(atob(data.content)));
+            return JSON.parse(content);
+        } catch (error) {
+            if (error.status === 404) return []; // Not set yet
+            throw error;
+        }
+    }
+
+    async updateFixedExpenses(expensesArray) {
+        const path = `${BASE_DATA_PATH}/settings/fixed_expenses.json`;
+        const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(expensesArray, null, 2))));
+
+        let sha = null;
+        try {
+            const { data } = await this.octokit.rest.repos.getContent({
+                owner: this.owner,
+                repo: this.repo,
+                path: path,
+            });
+            sha = data.sha;
+        } catch (error) {
+            if (error.status !== 404) throw error;
+        }
+
+        await this.octokit.rest.repos.createOrUpdateFileContents({
+            owner: this.owner,
+            repo: this.repo,
+            path: path,
+            message: `Update fixed expenses settings via PWA`,
+            content: contentBase64,
+            sha: sha || undefined,
+        });
+    }
 }

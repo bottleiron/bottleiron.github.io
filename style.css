@@ -611,6 +611,69 @@ body {
     width: 100%;
 }
 
+/* --- Fixed Expenses Widget --- */
+.fixed-expenses-widget {
+    margin: 0 20px 20px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.fixed-expenses-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    cursor: pointer;
+    background: #f8fafc;
+    transition: background 0.2s ease;
+}
+
+.fixed-expenses-header:active {
+    background: #f1f5f9;
+}
+
+.fixed-expenses-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.fixed-expenses-list {
+    border-top: 1px solid #f1f5f9;
+    padding: 10px 0;
+}
+
+.fixed-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.fixed-item:last-child {
+    border-bottom: none;
+}
+
+.pay-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(244, 63, 94, 0.3);
+}
+
+.pay-btn:active {
+    transform: scale(0.95);
+}
+
 /* --- Stats View --- */
 .stats-title {
     padding: 24px 24px 10px;

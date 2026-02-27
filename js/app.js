@@ -20,6 +20,7 @@ const app = {
     typingIndicator: null,
     currentDate: new Date(),
     allLedgerData: [], // Contains data for all years/months
+    fixedExpenses: [], // Contains monthly fixed expenses rules
     syncQueue: [], // Local unsynced changes
     selectedDate: null, // For modal
     currentUser: "사용자",
@@ -108,22 +109,31 @@ const app = {
         this.showTyping();
         try {
             // 1. Try to load from LocalStorage cache first for instant UX
-            const cached = localStorage.getItem(`cachedAllData_${this.currentUser}`);
-            if (cached) {
-                this.allLedgerData = JSON.parse(cached);
-                this.mergeQueueToLedger();
-                this.updateDashboard();
-                this.renderCalendar();
-                this.renderStats();
+            const cachedLedger = localStorage.getItem(`cachedAllData_${this.currentUser}`);
+            const cachedFixed = localStorage.getItem(`cachedFixed_${this.currentUser}`);
+
+            if (cachedLedger) {
+                this.allLedgerData = JSON.parse(cachedLedger);
             }
+            if (cachedFixed) {
+                this.fixedExpenses = JSON.parse(cachedFixed);
+            }
+
+            this.mergeQueueToLedger();
+            this.updateDashboard();
+            this.renderCalendar();
+            this.renderStats();
 
             // 2. Fetch all data from GitHub in JS background
             if (this.githubApi) {
-                // To avoid Rate Limit, we might only fetch if it's been a while, 
-                // but for now let's just fetch everything to keep the DB synced.
+                // To avoid Rate Limit, we might only fetch if it's been a while
                 const freshData = await this.githubApi.fetchAllData();
                 this.allLedgerData = freshData;
                 localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+
+                const freshFixed = await this.githubApi.getFixedExpenses();
+                this.fixedExpenses = freshFixed;
+                localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
 
                 this.mergeQueueToLedger();
                 this.updateDashboard();
@@ -206,6 +216,9 @@ const app = {
                 </div>
             `;
         }
+
+        // Render fixed expenses widget
+        this.renderFixedExpenses(year, month);
     },
 
     renderStats() {
@@ -587,6 +600,108 @@ ${ledgerStr}
 
 
     // ==========================================
+    // FIXED EXPENSES LOGIC
+    // ==========================================
+
+    renderFixedExpenses(year, month) {
+        const widgetList = document.getElementById('fixed-expenses-list');
+        const widgetStatus = document.getElementById('fixed-expenses-status');
+        if (!widgetList || !widgetStatus || !this.fixedExpenses) return;
+
+        widgetList.innerHTML = '';
+
+        if (this.fixedExpenses.length === 0) {
+            widgetStatus.textContent = '설정된 내역 없음';
+            widgetList.innerHTML = '<div style="padding:10px;text-align:center;color:var(--text-secondary);font-size:13px;">AI에게 "매달 1일에 월세 16만원 고정비 만들어줘"라고 말해보세요!</div>';
+            return;
+        }
+
+        const prefix = `${year}-${String(month).padStart(2, '0')}`;
+
+        // Find existing expenses matching fixed names in this month
+        const thisMonthLedger = this.allLedgerData.filter(item => item.date && item.date.startsWith(prefix));
+
+        let paidCount = 0;
+        const totalCount = this.fixedExpenses.length;
+
+        this.fixedExpenses.forEach(fixed => {
+            // Very simple exact match on place, or if keyword exists in place
+            const isPaid = thisMonthLedger.some(ledgerItem =>
+                ledgerItem.place === fixed.name ||
+                ledgerItem.place.includes(fixed.name) ||
+                (fixed.name.includes(ledgerItem.place) && ledgerItem.place.length > 1)
+            );
+
+            if (isPaid) paidCount++;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `fixed-item ${isPaid ? 'paid' : 'unpaid'}`;
+
+            const btnHtml = isPaid
+                ? `<span style="font-size:12px;color:var(--text-secondary);">완료</span>`
+                : `<button class="pay-btn" onclick="app.payFixedExpense('${fixed.id}', ${year}, ${month})">결제하기</button>`;
+
+            itemDiv.innerHTML = `
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:16px;">${isPaid ? '✅' : '❌'}</span>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;color:var(--text-primary);${isPaid ? 'text-decoration:line-through;color:var(--text-secondary);' : ''}">${fixed.name} (${fixed.pay_day}일)</div>
+                        <div style="font-size:11px;color:var(--text-secondary);">₩ ${fixed.amount.toLocaleString()}</div>
+                    </div>
+                </div>
+                ${btnHtml}
+            `;
+            widgetList.appendChild(itemDiv);
+        });
+
+        widgetStatus.textContent = `${paidCount}/${totalCount} 완료`;
+    },
+
+    toggleFixedExpenses() {
+        const list = document.getElementById('fixed-expenses-list');
+        if (!list) return;
+        if (list.style.display === 'none') {
+            list.style.display = 'block';
+        } else {
+            list.style.display = 'none';
+        }
+    },
+
+    payFixedExpense(fixedId, year, month) {
+        if (!confirm('이 고정 지출을 오늘 납부한 것으로 처리할까요?')) return;
+
+        const fixedItem = this.fixedExpenses.find(x => x.id === fixedId);
+        if (!fixedItem) return;
+
+        const todayTimestamp = new Date();
+        const yyyy = todayTimestamp.getFullYear();
+        const mm = String(todayTimestamp.getMonth() + 1).padStart(2, '0');
+        const dd = String(todayTimestamp.getDate()).padStart(2, '0');
+        const formattedDate = `${yyyy}-${mm}-${dd}`;
+
+        const newExpense = {
+            id: uuidv4(),
+            date: formattedDate,
+            amount: fixedItem.amount,
+            place: fixedItem.name,
+            payer: this.currentUser,
+            category: fixedItem.category || '기타',
+            _action: 'add',
+            timestamp: Date.now()
+        };
+
+        this.syncQueue.push(newExpense);
+        this.saveSyncQueue();
+        this.mergeQueueToLedger();
+
+        this.updateDashboard();
+        this.renderCalendar();
+        this.renderStats();
+
+        this.appendMessage(`📌 ${fixedItem.name} ${fixedItem.amount.toLocaleString()}원 방금 원클릭 납부 처리 완료! (동기화 버튼을 눌러 원격에 확정하세요)`, 'bot');
+    },
+
+    // ==========================================
     // CORE LOGIC (ADD / INQUIRY / DELETE)
     // ==========================================
 
@@ -882,9 +997,19 @@ ${summaryJsonStr}
 
         this.showTyping();
         try {
-            // Group queue by YYYY-MM-DD
+            // Group queue by YYYY-MM-DD for standard ledger data,
+            // or put special global tasks like settings in a separate pool.
             const groupedQueue = {};
+            let hasSettingsUpdate = false;
+            let latestSettingsData = null;
+
             this.syncQueue.forEach(item => {
+                if (item._action === 'settings_fixed') {
+                    hasSettingsUpdate = true;
+                    latestSettingsData = item.data;
+                    return; // skip folder grouping
+                }
+
                 if (!item.date) return;
                 const pathParts = item.date.split('-');
                 if (pathParts.length !== 3) return;
@@ -902,6 +1027,11 @@ ${summaryJsonStr}
             // Process each file separately
             for (const [filePath, queueItems] of Object.entries(groupedQueue)) {
                 await this.githubApi.syncSingleFile(filePath, queueItems);
+            }
+
+            // Sync settings if updated
+            if (hasSettingsUpdate && latestSettingsData) {
+                await this.githubApi.updateFixedExpenses(latestSettingsData);
             }
 
             // Sync successful
