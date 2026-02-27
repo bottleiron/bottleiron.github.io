@@ -772,11 +772,10 @@ body {
     color: var(--primary);
 }
 
-.trend-header {
+.trend-controls {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
+    justify-content: center;
+    padding: 20px 24px 12px;
 }
 
 .period-btns {
