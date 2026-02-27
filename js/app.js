@@ -19,7 +19,7 @@ const app = {
     userInput: null,
     typingIndicator: null,
     currentDate: new Date(),
-    ledgerData: [], // Current month data
+    allLedgerData: [], // Contains data for all years/months
     syncQueue: [], // Local unsynced changes
     selectedDate: null, // For modal
     currentUser: "사용자",
@@ -107,21 +107,33 @@ const app = {
     async loadData() {
         this.showTyping();
         try {
-            const year = this.currentDate.getFullYear();
-            const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
-            // Fetch all files for the current month
-            this.ledgerData = await this.getMonthDataFromGithub(year, month);
-            this.mergeQueueToLedger(year, month);
+            // 1. Try to load from LocalStorage cache first for instant UX
+            const cached = localStorage.getItem(`cachedAllData_${this.currentUser}`);
+            if (cached) {
+                this.allLedgerData = JSON.parse(cached);
+                this.mergeQueueToLedger();
+                this.updateDashboard();
+                this.renderCalendar();
+                this.renderStats();
+            }
 
-            this.updateDashboard();
-            this.renderCalendar();
-            this.renderStats();
+            // 2. Fetch all data from GitHub in JS background
+            if (this.githubApi) {
+                // To avoid Rate Limit, we might only fetch if it's been a while, 
+                // but for now let's just fetch everything to keep the DB synced.
+                const freshData = await this.githubApi.fetchAllData();
+                this.allLedgerData = freshData;
+                localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+
+                this.mergeQueueToLedger();
+                this.updateDashboard();
+                this.renderCalendar();
+                this.renderStats();
+            }
+
         } catch (error) {
             console.error("Failed to load data:", error);
-            // Even if failed, merge queue and render
-            const year = this.currentDate.getFullYear();
-            const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
-            this.mergeQueueToLedger(year, month);
+            this.mergeQueueToLedger();
             this.updateDashboard();
             this.renderCalendar();
             this.renderStats();
@@ -133,9 +145,10 @@ const app = {
     updateDashboard() {
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth() + 1;
+        const prefix = `${year}-${String(month).padStart(2, '0')}`;
 
-        const total = this.ledgerData.reduce((sum, item) => {
-            if (item.date && item.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)) {
+        const total = this.allLedgerData.reduce((sum, item) => {
+            if (item.date && item.date.startsWith(prefix)) {
                 return sum + Number(item.amount);
             }
             return sum;
@@ -172,7 +185,7 @@ const app = {
         const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
 
         const dailyTotals = {};
-        this.ledgerData.forEach(item => {
+        this.allLedgerData.forEach(item => {
             if (item.date && item.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)) {
                 const day = parseInt(item.date.split('-')[2], 10);
                 dailyTotals[day] = (dailyTotals[day] || 0) + Number(item.amount);
@@ -202,7 +215,7 @@ const app = {
         const categoryTotals = {};
         let totalMonth = 0;
 
-        this.ledgerData.forEach(item => {
+        this.allLedgerData.forEach(item => {
             if (item.date && item.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)) {
                 const cat = item.category || '기타';
                 categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
@@ -279,7 +292,7 @@ const app = {
 
         // Filter items for the selected date
         // Since we now use UUID, no need for _origIdx map
-        const dayItems = this.ledgerData.filter(item => item.date === this.selectedDate);
+        const dayItems = this.allLedgerData.filter(item => item.date === this.selectedDate);
 
         if (dayItems.length === 0) {
             listDiv.innerHTML = '<div class="empty-msg">이날의 지출 내역이 없습니다.</div>';
@@ -321,7 +334,6 @@ const app = {
             alert('상호명과 금액을 모두 입력해주세요.');
             return;
         }
-
         const amount = parseInt(amountStr, 10);
         if (isNaN(amount) || amount <= 0) {
             alert('올바른 금액을 입력해주세요.');
@@ -345,14 +357,19 @@ const app = {
             this.saveSyncQueue();
 
             // Refresh Memory
+            this.mergeQueueToLedger();
+
             const dateObj = new Date(expenseData.date);
             const year = dateObj.getFullYear();
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            this.mergeQueueToLedger(year, month);
-            this.updateDashboard();
-            this.renderCalendar();
-            this.renderStats();
-            this.renderModalExpenses();
+
+            // Only strictly update view if same month
+            if (year === this.currentDate.getFullYear() && month === String(this.currentDate.getMonth() + 1).padStart(2, '0')) {
+                this.updateDashboard();
+                this.renderCalendar();
+                this.renderStats();
+                this.renderModalExpenses();
+            }
 
             // Clear inputs
             placeInput.value = '';
@@ -382,11 +399,15 @@ const app = {
             const dateObj = new Date(date);
             const year = dateObj.getFullYear();
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            this.mergeQueueToLedger(year, month);
-            this.updateDashboard();
-            this.renderCalendar();
-            this.renderStats();
-            this.renderModalExpenses();
+
+            this.mergeQueueToLedger();
+
+            if (year === this.currentDate.getFullYear() && month === String(this.currentDate.getMonth() + 1).padStart(2, '0')) {
+                this.updateDashboard();
+                this.renderCalendar();
+                this.renderStats();
+                this.renderModalExpenses();
+            }
 
             this.appendMessage(`선택하신 지출 내역을 삭제 예약했습니다. (미동기화) 🗑️`, 'bot');
         } catch (e) {
@@ -458,7 +479,7 @@ const app = {
             } else if (intentResp.intent === "DELETE") {
                 await this.processDeleteExpense(text);
             } else {
-                await this.processInquiry(text);
+                await this.processInquiry(text, intentResp.data);
             }
 
         } catch (error) {
@@ -494,8 +515,9 @@ const app = {
 {"intent": "DELETE", "data": null}
 
 3. 내역 조회 및 질문 (intent: "INQUIRY")
-사용자가 과거 내역에 대해 질문하는 경우, 데이터 필드 없이 반환하세요.
-{"intent": "INQUIRY"}
+사용자가 과거 내역에 대해 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
+없으면 null로 처리하세요. (예: "작년 식비 얼마야?" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
+{"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
 사용자 입력: "${userText}"
 `;
@@ -594,15 +616,13 @@ ${ledgerStr}
     },
 
     /**
-     * Merge items from sync queue to current ledgerData memory
+     * Merge ALL items from sync queue to current allLedgerData memory
      */
-    mergeQueueToLedger(year, month) {
-        // Find queue items matching current YYYY-MM
-        const prefix = `${year}-${String(month).padStart(2, '0')}`;
-
+    mergeQueueToLedger() {
         let mergedObj = {};
+
         // 1. Initial items
-        this.ledgerData.forEach(item => {
+        this.allLedgerData.forEach(item => {
             mergedObj[item.id] = item;
         });
 
@@ -610,7 +630,7 @@ ${ledgerStr}
         // A queue item would be an actual expense object with an additional _action field indicating logic 
         // _action: "add", "edit", "delete"
         this.syncQueue.forEach(qItem => {
-            if (qItem.date && qItem.date.startsWith(prefix)) {
+            if (qItem.date) {
                 if (qItem._action === 'delete') {
                     delete mergedObj[qItem.id];
                 } else {
@@ -620,7 +640,8 @@ ${ledgerStr}
             }
         });
 
-        this.ledgerData = Object.values(mergedObj);
+        // Convert back to array and sort descending by date
+        this.allLedgerData = Object.values(mergedObj).sort((a, b) => new Date(b.date) - new Date(a.date));
     },
 
     /**
@@ -644,8 +665,9 @@ ${ledgerStr}
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
 
         // Only if it's the current viewing month, merge to show immediately
+        // Actually, since we use All-in-Memory now, just merge without params
+        this.mergeQueueToLedger();
         if (year === this.currentDate.getFullYear() && month === String(this.currentDate.getMonth() + 1).padStart(2, '0')) {
-            this.mergeQueueToLedger(year, month);
             this.updateDashboard();
             this.renderCalendar();
             this.renderStats();
@@ -663,20 +685,20 @@ ${ledgerStr}
      * Delete expense locally
      */
     async processDeleteExpense(userText) {
-        if (this.ledgerData.length === 0) {
-            this.appendMessage('이번 달 가계부가 비어있어 삭제할 내용이 없습니다.', 'bot');
+        if (this.allLedgerData.length === 0) {
+            this.appendMessage('가계부가 비어있어 삭제할 내용이 없습니다.', 'bot');
             return;
         }
 
         const prompt = `
-아래는 현재 가계부 내역(JSON 배열)입니다.
+아래는 현재 가계부 내역(JSON 배열)의 최근 50건입니다.
 사용자는 이 중에서 특정 지출 항목을 삭제해달라고 요청했습니다.
 요청에 해당하는 항목의 **id (문자열)** 값을 찾아 JSON 배열 형식으로만 출력하세요. (예: ["id1", "id2"] 혹은 일치하는게 없으면 [])
 부연 설명이나 마크다운 문법 없이 오직 배열만 출력해야 합니다.
 
 사용자 요청: "${userText}"
-현재 가계부 내역:
-${JSON.stringify(this.ledgerData)}
+현재 가계부 내역 (일부):
+${JSON.stringify(this.allLedgerData.slice(0, 50))}
 `;
         const idsStr = await this.fetchGemini(prompt);
         let idsToDelete = [];
@@ -694,8 +716,8 @@ ${JSON.stringify(this.ledgerData)}
         let deletedCount = 0;
 
         for (let targetId of idsToDelete) {
-            // Find the original item from ledgerData to get its date
-            const originalItem = this.ledgerData.find(item => item.id === targetId);
+            // Find the original item from allLedgerData to get its date
+            const originalItem = this.allLedgerData.find(item => item.id === targetId);
             if (originalItem) {
                 // Add delete action to queue
                 this.syncQueue.push({
@@ -714,10 +736,9 @@ ${JSON.stringify(this.ledgerData)}
         }
 
         this.saveSyncQueue();
+        this.mergeQueueToLedger();
 
-        const year = this.currentDate.getFullYear();
-        const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
-        this.mergeQueueToLedger(year, month);
+        // Refresh Current View Only if needed (but doing it safely is always good)
         this.updateDashboard();
         this.renderCalendar();
         this.renderStats();
@@ -726,10 +747,31 @@ ${JSON.stringify(this.ledgerData)}
     },
 
     /**
-     * Analyze and respond based on existing ledger contents
+     * Analyze and respond based on existing ledger contents (SMART RAG)
      */
-    async processInquiry(userText) {
-        let ledgerStr = JSON.stringify(this.ledgerData);
+    async processInquiry(userText, filterData = null) {
+        let targetData = this.allLedgerData;
+
+        // 1. Pre-filter data to save LLM tokens and cost (Smart RAG 3-Step)
+        if (filterData) {
+            targetData = targetData.filter(item => {
+                let match = true;
+                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
+                if (filterData.category && item.category !== filterData.category) match = false;
+                // Optional: add place or keyword filtering if needed
+                return match;
+            });
+        }
+
+        // If even after filtering data is huge, we might slice it, but usually filtering drops it significantly.
+        // Let's protect against huge token usage:
+        if (targetData.length > 300) {
+            targetData = targetData.slice(0, 300);
+            this.appendMessage('⚠️ 데이터가 너무 많아 최근 300건만 분석합니다.', 'bot');
+        }
+
+        let ledgerStr = JSON.stringify(targetData);
+
         // 2. Send context + question to Gemini
         const aiAnswerHtml = await this.askGeminiRAG(userText, ledgerStr);
         // 3. Display answer

@@ -12,6 +12,52 @@ export class GithubApi {
     }
 
     /**
+     * Fetch ALL JSON files spanning all years and months
+     */
+    async fetchAllData() {
+        try {
+            // 1. Get all year folders in BASE_DATA_PATH
+            const { data: yearFolders } = await this.octokit.rest.repos.getContent({
+                owner: this.owner,
+                repo: this.repo,
+                path: BASE_DATA_PATH,
+            });
+
+            if (!Array.isArray(yearFolders)) return [];
+
+            let allLedgerData = [];
+            // For each year, get months
+            for (const yearFolder of yearFolders.filter(f => f.type === 'dir')) {
+                const { data: monthFolders } = await this.octokit.rest.repos.getContent({
+                    owner: this.owner,
+                    repo: this.repo,
+                    path: yearFolder.path,
+                });
+
+                if (!Array.isArray(monthFolders)) continue;
+
+                // For each month, fetch its data reusing getMonthData logic
+                for (const monthFolder of monthFolders.filter(f => f.type === 'dir')) {
+                    const year = yearFolder.name;
+                    const month = monthFolder.name;
+                    const monthData = await this.getMonthData(year, month);
+                    allLedgerData = allLedgerData.concat(monthData);
+                }
+            }
+
+            // Sort by date descending
+            allLedgerData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            return allLedgerData;
+
+        } catch (error) {
+            if (error.status === 404) {
+                return []; // No data directory yet
+            }
+            throw error;
+        }
+    }
+
+    /**
      * Fetch all JSON files within specific month directory
      */
     async getMonthData(year, month) {
