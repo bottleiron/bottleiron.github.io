@@ -706,6 +706,95 @@ ${ledgerStr}
         }
     },
 
+    openFixedModal() {
+        const modal = document.getElementById('fixed-modal');
+        const list = document.getElementById('modal-fixed-list');
+        if (!modal || !list) return;
+
+        list.innerHTML = '';
+
+        if (!this.fixedExpenses || this.fixedExpenses.length === 0) {
+            list.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-secondary); font-size: 13px;">등록된 고정비가 없습니다. 아래에서 직접 추가하거나 채팅으로 말씀해 주세요!</div>';
+        } else {
+            this.fixedExpenses.forEach(fixed => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'expense-item';
+                itemDiv.style.justifyContent = 'space-between';
+                itemDiv.innerHTML = `
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:600; font-size:14px; color:var(--text-primary);">${fixed.name}</span>
+                        <span style="font-size:12px; color:var(--text-secondary);">매월 ${fixed.pay_day}일 · ₩ ${fixed.amount.toLocaleString()}</span>
+                    </div>
+                    <button class="pay-btn" style="background:#ef4444; padding:6px 10px;" onclick="app.deleteFixedExpense('${fixed.id}')" title="삭제"><i class="fas fa-trash"></i> 삭제</button>
+                `;
+                list.appendChild(itemDiv);
+            });
+        }
+
+        modal.style.display = 'flex';
+    },
+
+    closeFixedModal() {
+        const modal = document.getElementById('fixed-modal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    deleteFixedExpense(id) {
+        if (!confirm('이 고정비 항목을 정말 삭제할까요?')) return;
+
+        // filter out
+        this.fixedExpenses = this.fixedExpenses.filter(x => x.id !== id);
+
+        // syncQueue에 settings_fixed 저장명령 추가
+        this.syncQueue.push({
+            _action: 'settings_fixed',
+            data: this.fixedExpenses
+        });
+        this.saveSyncQueue();
+
+        // re-render UI
+        this.openFixedModal();
+        const year = this.currentDate.getFullYear();
+        const month = this.currentDate.getMonth() + 1;
+        this.renderFixedExpenses(year, month);
+    },
+
+    addFixedExpenseFromUI() {
+        const nameInput = document.getElementById('add-fixed-name');
+        const dayInput = document.getElementById('add-fixed-day');
+        const amountInput = document.getElementById('add-fixed-amount');
+
+        if (!nameInput.value.trim() || !dayInput.value || !amountInput.value) {
+            alert('항목명, 이체일, 금액을 모두 정확히 입력해 주세요.');
+            return;
+        }
+
+        const newFixed = {
+            id: uuidv4(),
+            name: nameInput.value.trim(),
+            pay_day: parseInt(dayInput.value, 10),
+            amount: parseInt(amountInput.value, 10),
+            category: "기타" // UI 간소화를 위해 기타 처리 또는 향후 select박스 확장 가능
+        };
+
+        this.fixedExpenses.push(newFixed);
+
+        this.syncQueue.push({
+            _action: 'settings_fixed',
+            data: this.fixedExpenses
+        });
+        this.saveSyncQueue();
+
+        nameInput.value = '';
+        dayInput.value = '';
+        amountInput.value = '';
+
+        this.openFixedModal();
+        const year = this.currentDate.getFullYear();
+        const month = this.currentDate.getMonth() + 1;
+        this.renderFixedExpenses(year, month);
+    },
+
     payFixedExpense(fixedId, year, month) {
         if (!confirm('이 고정 지출을 오늘 납부한 것으로 처리할까요?')) return;
 
