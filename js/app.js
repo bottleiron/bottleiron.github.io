@@ -343,7 +343,6 @@ const app = {
         listDiv.innerHTML = '';
 
         // Filter items for the selected date
-        // Since we now use UUID, no need for _origIdx map
         const dayItems = this.allLedgerData.filter(item => item.date === this.selectedDate);
 
         if (dayItems.length === 0) {
@@ -351,26 +350,110 @@ const app = {
             return;
         }
 
+        const categories = ['식비', '교통비', '이자', '관리비', '통신비', '공과금', '보험', '문화생활', '모임', '쇼핑', '그리시유', '기타'];
+
         dayItems.forEach(item => {
             const formatedAmt = new Intl.NumberFormat('ko-KR').format(item.amount);
-            listDiv.innerHTML += `
-                <div class="expense-item">
-                    <div class="expense-info">
-                        <span class="expense-place">${item.place}</span>
-                        <span class="expense-cat">${item.category || '기타'}</span>
-                    </div>
-                    <div class="expense-right">
-                        <span class="expense-amt">₩ ${formatedAmt}</span>
-                        <button class="del-btn" onclick="app.deleteExpenseById('${item.id}', '${item.date}')" title="삭제">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                        </button>
-                    </div>
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'expense-item';
+            itemDiv.id = `expense-item-${item.id}`;
+
+            // 기본 보기 모드
+            itemDiv.innerHTML = `
+                <div class="expense-info">
+                    <span class="expense-place">${item.place}</span>
+                    <span class="expense-cat">${item.category || '기타'}</span>
+                </div>
+                <div class="expense-right">
+                    <span class="expense-amt">₩ ${formatedAmt}</span>
+                    <button class="edit-btn" onclick="app.editExpenseById('${item.id}')" title="수정">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="del-btn" onclick="app.deleteExpenseById('${item.id}', '${item.date}')" title="삭제">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
                 </div>
             `;
+            listDiv.appendChild(itemDiv);
         });
+    },
+
+    editExpenseById(id) {
+        const item = this.allLedgerData.find(i => i.id === id);
+        if (!item) return;
+
+        const categories = ['식비', '교통비', '이자', '관리비', '통신비', '공과금', '보험', '문화생활', '모임', '쇼핑', '그리시유', '기타'];
+        const catOptions = categories.map(c =>
+            `<option value="${c}" ${c === (item.category || '기타') ? 'selected' : ''}>${c}</option>`
+        ).join('');
+
+        const itemDiv = document.getElementById(`expense-item-${id}`);
+        if (!itemDiv) return;
+
+        itemDiv.className = 'expense-item editing';
+        itemDiv.innerHTML = `
+            <div class="edit-form" style="width:100%; display:flex; flex-direction:column; gap:8px;">
+                <input type="text" id="edit-place-${id}" value="${item.place}" placeholder="상호명" style="padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none;">
+                <div style="display:flex; gap:8px;">
+                    <input type="number" id="edit-amount-${id}" value="${item.amount}" placeholder="금액" style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none;">
+                    <select id="edit-category-${id}" style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none; background:white;">
+                        ${catOptions}
+                    </select>
+                </div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button onclick="app.renderModalExpenses()" style="padding:6px 14px; border:1px solid var(--border-color); border-radius:8px; background:white; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-secondary);">취소</button>
+                    <button onclick="app.saveEditedExpense('${id}')" style="padding:6px 14px; border:none; border-radius:8px; background:var(--primary); color:white; font-size:12px; font-weight:600; cursor:pointer;">저장</button>
+                </div>
+            </div>
+        `;
+    },
+
+    saveEditedExpense(id) {
+        const placeInput = document.getElementById(`edit-place-${id}`);
+        const amountInput = document.getElementById(`edit-amount-${id}`);
+        const categoryInput = document.getElementById(`edit-category-${id}`);
+
+        if (!placeInput || !amountInput || !categoryInput) return;
+
+        const place = placeInput.value.trim();
+        const amount = parseInt(amountInput.value, 10);
+        const category = categoryInput.value;
+
+        if (!place || isNaN(amount) || amount <= 0) {
+            alert('상호명과 올바른 금액을 입력해주세요.');
+            return;
+        }
+
+        // Find existing item
+        const item = this.allLedgerData.find(i => i.id === id);
+        if (!item) return;
+
+        // Push edit to sync queue
+        const editedItem = {
+            ...item,
+            place: place,
+            amount: amount,
+            category: category,
+            _action: 'add', // 'add' with same id = overwrite
+            timestamp: Date.now()
+        };
+
+        this.syncQueue.push(editedItem);
+        this.saveSyncQueue();
+        this.mergeQueueToLedger();
+
+        this.updateDashboard();
+        this.renderCalendar();
+        this.renderStats();
+        this.renderModalExpenses();
+
+        this.appendMessage(`✏️ ${place} ${new Intl.NumberFormat('ko-KR').format(amount)}원 (${category})으로 수정했어요. (동기화 버튼을 눌러 확정해주세요)`, 'bot');
     },
 
     async addExpenseFromModal() {

@@ -931,6 +931,26 @@ body {
     background: #fee2e2;
 }
 
+.edit-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+}
+
+.edit-btn:hover {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.expense-item.editing {
+    background: white;
+    border: 1px solid var(--primary);
+    padding: 14px 16px;
+}
+
 .empty-msg {
     text-align: center;
     color: var(--text-secondary);
