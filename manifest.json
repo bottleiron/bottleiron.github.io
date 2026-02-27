@@ -1,15 +1,21 @@
 {
-  "name": "슈가게부",
+  "name": "슈가게부 (SugarGebu)",
   "short_name": "슈가게부",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#b2c7d9",
-  "theme_color": "#b2c7d9",
+  "background_color": "#121212",
+  "theme_color": "#ff3366",
+  "description": "No Build PWA 기반 가계부 어플리케이션",
   "icons": [
     {
-      "src": "./icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml"
+      "src": "favicon.ico",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }

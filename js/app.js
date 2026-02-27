@@ -1,23 +1,26 @@
 /**
  * app.js
  * Core application logic to handle conversational parsing by Gemini and 
- * reading/writing to GitHub's `ledger.json` via REST API.
+ * reading/writing to GitHub via GithubApi class (No-Build Architecture).
  */
+
+import { v4 as uuidv4 } from "uuid";
+import { GithubApi } from "./github-api.js";
 
 const GITHUB_OWNER = 'bottleiron';
 const GITHUB_REPO = 'my-ledger-data';
-const FILE_PATH = 'ledger.json';
-const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}`;
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
 const app = {
     geminiKey: "",
     githubPat: "",
+    githubApi: null,
     chatWindow: null,
     userInput: null,
     typingIndicator: null,
     currentDate: new Date(),
-    ledgerData: [],
+    ledgerData: [], // Current month data
+    syncQueue: [], // Local unsynced changes
     selectedDate: null, // For modal
     currentUser: "사용자",
 
@@ -25,6 +28,11 @@ const app = {
         this.geminiKey = sessionStorage.getItem("geminiKey");
         this.githubPat = sessionStorage.getItem("githubPat");
         this.currentUser = sessionStorage.getItem("currentUser") || "사용자";
+
+        if (this.githubPat) {
+            this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
+        }
+
         console.log("app.init() called, user:", this.currentUser);
         this.chatWindow = document.getElementById('chat-window');
         this.userInput = document.getElementById('user-input');
@@ -60,6 +68,7 @@ const app = {
             });
 
             this._isInitialized = true;
+            this.loadSyncQueue();
             this.loadData();
         }
     },
@@ -96,18 +105,28 @@ const app = {
     },
 
     async loadData() {
+        this.showTyping();
         try {
-            const ghData = await this.getLedgerFromGithub();
-            if (ghData.contentStr) {
-                this.ledgerData = JSON.parse(ghData.contentStr);
-            } else {
-                this.ledgerData = [];
-            }
+            const year = this.currentDate.getFullYear();
+            const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+            // Fetch all files for the current month
+            this.ledgerData = await this.getMonthDataFromGithub(year, month);
+            this.mergeQueueToLedger(year, month);
+
             this.updateDashboard();
             this.renderCalendar();
             this.renderStats();
         } catch (error) {
             console.error("Failed to load data:", error);
+            // Even if failed, merge queue and render
+            const year = this.currentDate.getFullYear();
+            const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+            this.mergeQueueToLedger(year, month);
+            this.updateDashboard();
+            this.renderCalendar();
+            this.renderStats();
+        } finally {
+            this.hideTyping();
         }
     },
 
@@ -258,9 +277,9 @@ const app = {
         const listDiv = document.getElementById('modal-expense-list');
         listDiv.innerHTML = '';
 
-        // Filter items for the selected date and keep track of their original index
-        const dayItems = this.ledgerData.map((item, idx) => ({ ...item, _origIdx: idx }))
-            .filter(item => item.date === this.selectedDate);
+        // Filter items for the selected date
+        // Since we now use UUID, no need for _origIdx map
+        const dayItems = this.ledgerData.filter(item => item.date === this.selectedDate);
 
         if (dayItems.length === 0) {
             listDiv.innerHTML = '<div class="empty-msg">이날의 지출 내역이 없습니다.</div>';
@@ -277,7 +296,7 @@ const app = {
                     </div>
                     <div class="expense-right">
                         <span class="expense-amt">₩ ${formatedAmt}</span>
-                        <button class="del-btn" onclick="app.deleteExpenseByIndex(${item._origIdx})" title="삭제">
+                        <button class="del-btn" onclick="app.deleteExpenseById('${item.id}', '${item.date}')" title="삭제">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -310,26 +329,26 @@ const app = {
         }
 
         const expenseData = {
+            id: uuidv4(),
             date: this.selectedDate,
             amount: amount,
             place: place,
             payer: this.currentUser,
-            category: category
+            category: category,
+            _action: 'add',
+            timestamp: Date.now()
         };
 
         try {
-            // Re-fetch latest to avoid conflicts
-            const ghData = await this.getLedgerFromGithub();
-            let ledgerArray = [];
-            if (ghData.contentStr) {
-                ledgerArray = JSON.parse(ghData.contentStr);
-            }
+            // Add to queue
+            this.syncQueue.push(expenseData);
+            this.saveSyncQueue();
 
-            ledgerArray.push(expenseData);
-            await this.updateLedgerToGithub(JSON.stringify(ledgerArray, null, 2));
-
-            // Sync state and UI
-            this.ledgerData = ledgerArray;
+            // Refresh Memory
+            const dateObj = new Date(expenseData.date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            this.mergeQueueToLedger(year, month);
             this.updateDashboard();
             this.renderCalendar();
             this.renderStats();
@@ -339,7 +358,8 @@ const app = {
             placeInput.value = '';
             amountInput.value = '';
 
-            this.appendMessage(`달력에서 직접 추가 완료! 💸\n${expenseData.date}\n${expenseData.place}에서 ${new Intl.NumberFormat('ko-KR').format(amount)}원 지출 기록`, 'bot');
+            // Optional message
+            this.appendMessage(`달력에서 💸\n${expenseData.date}\n${expenseData.place}에서 ${new Intl.NumberFormat('ko-KR').format(amount)}원 지출 추가 처리 (미동기화)`, 'bot');
 
         } catch (e) {
             console.error(e);
@@ -347,33 +367,28 @@ const app = {
         }
     },
 
-    async deleteExpenseByIndex(index) {
+    async deleteExpenseById(id, date) {
         if (!confirm('이 지출 내역을 삭제하시겠습니까?')) return;
 
         try {
-            // Re-fetch latest to avoid conflicts
-            const ghData = await this.getLedgerFromGithub();
-            let ledgerArray = [];
-            if (ghData.contentStr) {
-                ledgerArray = JSON.parse(ghData.contentStr);
-            }
+            this.syncQueue.push({
+                id: id,
+                date: date,
+                _action: 'delete',
+                timestamp: Date.now()
+            });
+            this.saveSyncQueue();
 
-            if (index >= 0 && index < ledgerArray.length) {
-                ledgerArray.splice(index, 1);
-                await this.updateLedgerToGithub(JSON.stringify(ledgerArray, null, 2));
+            const dateObj = new Date(date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            this.mergeQueueToLedger(year, month);
+            this.updateDashboard();
+            this.renderCalendar();
+            this.renderStats();
+            this.renderModalExpenses();
 
-                // Sync state and UI
-                this.ledgerData = ledgerArray;
-                this.updateDashboard();
-                this.renderCalendar();
-                this.renderStats();
-                this.renderModalExpenses();
-
-                this.appendMessage(`선택하신 지출 내역을 삭제했습니다. 🗑️`, 'bot');
-            } else {
-                alert('삭제할 대상을 찾을 수 없습니다.');
-            }
-
+            this.appendMessage(`선택하신 지출 내역을 삭제 예약했습니다. (미동기화) 🗑️`, 'bot');
         } catch (e) {
             console.error(e);
             alert('삭제 중 오류가 발생했습니다.');
@@ -544,85 +559,151 @@ ${ledgerStr}
 
 
     // ==========================================
-    // CORE LOGIC (ADD / INQUIRY)
+    // CORE LOGIC (ADD / INQUIRY / DELETE)
     // ==========================================
 
     /**
-     * Add new expense to the ledger.json on GitHub
+     * Store local sync queue to IndexedDB or LocalStorage
      */
-    async processAddExpense(expenseData) {
-        // 1. Fetch current file content and sha
-        const ghData = await this.getLedgerFromGithub();
+    saveSyncQueue() {
+        localStorage.setItem(`syncQueue_${this.currentUser}`, JSON.stringify(this.syncQueue));
+        this.updateSyncBadge();
+    },
 
-        let ledgerArray = [];
-        if (ghData.contentStr) {
-            ledgerArray = JSON.parse(ghData.contentStr);
+    loadSyncQueue() {
+        try {
+            const data = localStorage.getItem(`syncQueue_${this.currentUser}`);
+            if (data) {
+                this.syncQueue = JSON.parse(data);
+            }
+        } catch (e) {
+            this.syncQueue = [];
         }
+        this.updateSyncBadge();
+    },
 
-        // 2. Append new data
-        ledgerArray.push(expenseData);
-        this.ledgerData = ledgerArray; // Update state
-
-        // 3. Update the file via PUT
-        await this.updateLedgerToGithub(JSON.stringify(ledgerArray, null, 2));
-
-        // 4. Update UI
-        this.updateDashboard();
-        this.renderCalendar();
-        this.renderStats();
-
-        // 5. Success message
-        const formatedAmt = new Intl.NumberFormat('ko-KR').format(expenseData.amount);
-        this.appendMessage(`완료! 💸\n${expenseData.date}\n${expenseData.place}에서 ${formatedAmt}원 지출로 기록했어요.`, 'bot');
+    updateSyncBadge() {
+        const badge = document.getElementById('sync-badge');
+        if (!badge) return;
+        if (this.syncQueue.length > 0) {
+            badge.style.display = 'inline-block';
+            badge.textContent = this.syncQueue.length;
+        } else {
+            badge.style.display = 'none';
+        }
     },
 
     /**
-     * Delete expense from ledger.json on GitHub
+     * Merge items from sync queue to current ledgerData memory
+     */
+    mergeQueueToLedger(year, month) {
+        // Find queue items matching current YYYY-MM
+        const prefix = `${year}-${String(month).padStart(2, '0')}`;
+
+        let mergedObj = {};
+        // 1. Initial items
+        this.ledgerData.forEach(item => {
+            mergedObj[item.id] = item;
+        });
+
+        // 2. Queue items (Override or Add or Delete)
+        // A queue item would be an actual expense object with an additional _action field indicating logic 
+        // _action: "add", "edit", "delete"
+        this.syncQueue.forEach(qItem => {
+            if (qItem.date && qItem.date.startsWith(prefix)) {
+                if (qItem._action === 'delete') {
+                    delete mergedObj[qItem.id];
+                } else {
+                    mergedObj[qItem.id] = { ...qItem };
+                    delete mergedObj[qItem.id]._action; // remove internal action field
+                }
+            }
+        });
+
+        this.ledgerData = Object.values(mergedObj);
+    },
+
+    /**
+     * Add new expense to the local queue
+     */
+    async processAddExpense(expenseData) {
+        // Enforce ID
+        if (!expenseData.id) {
+            expenseData.id = uuidv4();
+        }
+        expenseData._action = 'add';
+        expenseData.timestamp = Date.now();
+
+        // Add to queue
+        this.syncQueue.push(expenseData);
+        this.saveSyncQueue();
+
+        // Refresh Memory List
+        const dateObj = new Date(expenseData.date);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+
+        // Only if it's the current viewing month, merge to show immediately
+        if (year === this.currentDate.getFullYear() && month === String(this.currentDate.getMonth() + 1).padStart(2, '0')) {
+            this.mergeQueueToLedger(year, month);
+            this.updateDashboard();
+            this.renderCalendar();
+            this.renderStats();
+            if (this.selectedDate === expenseData.date) {
+                this.renderModalExpenses();
+            }
+        }
+
+        // Success message
+        const formatedAmt = new Intl.NumberFormat('ko-KR').format(expenseData.amount);
+        this.appendMessage(`완료! 💸\n${expenseData.date}\n${expenseData.place}에서 ${formatedAmt}원 지출로 장부 모음에 올려두었어요. (동기화 버튼을 눌러 확정해주세요)`, 'bot');
+    },
+
+    /**
+     * Delete expense locally
      */
     async processDeleteExpense(userText) {
-        // 1. Fetch current file content
-        const ghData = await this.getLedgerFromGithub();
-        if (!ghData.contentStr || ghData.contentStr === "[]") {
-            this.appendMessage('삭제할 가계부 내역이 비어있습니다.', 'bot');
+        if (this.ledgerData.length === 0) {
+            this.appendMessage('이번 달 가계부가 비어있어 삭제할 내용이 없습니다.', 'bot');
             return;
         }
 
-        let ledgerArray = JSON.parse(ghData.contentStr);
-        if (ledgerArray.length === 0) {
-            this.appendMessage('가계부가 비어있어 삭제할 내용이 없습니다.', 'bot');
-            return;
-        }
-
-        // 2. Ask Gemini to find matching indices to delete
         const prompt = `
 아래는 현재 가계부 내역(JSON 배열)입니다.
 사용자는 이 중에서 특정 지출 항목을 삭제해달라고 요청했습니다.
-요청에 해당하는 항목의 **인덱스 번호(0부터 시작)**를 찾아 JSON 정수 배열 형식으로만 출력하세요. (예: [1, 3] 혹은 [0] 혹은 일치하는게 없으면 [])
-부연 설명이나 마크다운 백틱 문법 없이 오직 배열만 출력해야 합니다.
+요청에 해당하는 항목의 **id (문자열)** 값을 찾아 JSON 배열 형식으로만 출력하세요. (예: ["id1", "id2"] 혹은 일치하는게 없으면 [])
+부연 설명이나 마크다운 문법 없이 오직 배열만 출력해야 합니다.
 
 사용자 요청: "${userText}"
 현재 가계부 내역:
-${ghData.contentStr}
+${JSON.stringify(this.ledgerData)}
 `;
-        const indicesStr = await this.fetchGemini(prompt);
-        let indicesToDelete = [];
+        const idsStr = await this.fetchGemini(prompt);
+        let idsToDelete = [];
         try {
-            indicesToDelete = JSON.parse(indicesStr);
+            idsToDelete = JSON.parse(idsStr);
         } catch (e) {
             throw new Error("AI가 삭제 대상을 올바르게 파악하지 못했습니다.");
         }
 
-        if (!Array.isArray(indicesToDelete) || indicesToDelete.length === 0) {
+        if (!Array.isArray(idsToDelete) || idsToDelete.length === 0) {
             this.appendMessage('해당하는 지출 내역을 가계부에서 찾지 못했어요. (정확한 금액이나 식당을 알려주세요)', 'bot');
             return;
         }
 
-        // 여러개가 나올 수 있으므로 역순 정렬하여 뒤에서부터 지움(인덱스 밀림 방지)
-        indicesToDelete.sort((a, b) => b - a);
         let deletedCount = 0;
-        for (let idx of indicesToDelete) {
-            if (idx >= 0 && idx < ledgerArray.length) {
-                ledgerArray.splice(idx, 1);
+
+        for (let targetId of idsToDelete) {
+            // Find the original item from ledgerData to get its date
+            const originalItem = this.ledgerData.find(item => item.id === targetId);
+            if (originalItem) {
+                // Add delete action to queue
+                this.syncQueue.push({
+                    id: targetId,
+                    date: originalItem.date,
+                    _action: 'delete',
+                    timestamp: Date.now()
+                });
                 deletedCount++;
             }
         }
@@ -631,103 +712,102 @@ ${ghData.contentStr}
             this.appendMessage('해당하는 지출 내역을 찾지 못했어요.', 'bot');
             return;
         }
-        this.ledgerData = ledgerArray; // Update state
 
-        // 3. Update the file via PUT
-        await this.updateLedgerToGithub(JSON.stringify(ledgerArray, null, 2));
+        this.saveSyncQueue();
 
-        // 4. Update UI
+        const year = this.currentDate.getFullYear();
+        const month = String(this.currentDate.getMonth() + 1).padStart(2, '0');
+        this.mergeQueueToLedger(year, month);
         this.updateDashboard();
         this.renderCalendar();
         this.renderStats();
 
-        // 5. Success message
-        this.appendMessage(`요청하신 지출 내역 ${deletedCount}건을 삭제 처리했습니다. 🗑️`, 'bot');
+        this.appendMessage(`요청하신 지출 내역 ${deletedCount}건 삭제를 예약했습니다. 🗑️ (동기화 버튼을 눌러 확정해주세요)`, 'bot');
     },
 
     /**
      * Analyze and respond based on existing ledger contents
      */
     async processInquiry(userText) {
-        // 1. Fetch current file from GitHub
-        const ghData = await this.getLedgerFromGithub();
-        let ledgerStr = ghData.contentStr || "[]";
-
+        let ledgerStr = JSON.stringify(this.ledgerData);
         // 2. Send context + question to Gemini
         const aiAnswerHtml = await this.askGeminiRAG(userText, ledgerStr);
-
         // 3. Display answer
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
 
 
     // ==========================================
-    // GITHUB API CALLS
+    // GITHUB OCTOKIT DATA CALLS & SYNC (Via GithubApi Module)
     // ==========================================
 
     /**
-     * GET `ledger.json` from repo
+     * Fetch all JSON files within specific month directory
      */
-    async getLedgerFromGithub() {
-        const response = await fetch(GITHUB_API_URL, {
-            method: 'GET',
-            headers: {
-                'Authorization': `token ${this.githubPat}`,
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            cache: 'no-store' // ✨ 추가: 브라우저 캐싱 방지
-        });
-
-        if (response.status === 404) {
-            // File does not exist yet. Return empty string and no sha.
-            return { contentStr: "", sha: null };
+    async getMonthDataFromGithub(year, month) {
+        if (!this.githubApi) {
+            console.error("GithubApi not initialized, skipping fetch");
+            return [];
         }
-
-        if (!response.ok) {
-            throw new Error(`GitHub API Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const base64Content = data.content;
-        // Github API requires utf-8 decoding for Base64 (btoa/atob doesn't handle unicode well)
-        // See: https://developer.mozilla.org/en-US/docs/Glossary/Base64#the_unicode_problem
-        const decodedContent = decodeURIComponent(escape(window.atob(base64Content)));
-
-        return { contentStr: decodedContent, sha: data.sha };
+        return await this.githubApi.getMonthData(year, month);
     },
 
     /**
-     * PUT `ledger.json` back to repo
+     * Manual Sync Process
      */
-    async updateLedgerToGithub(newContentStr) {
-        // 쓰기 직전에 항상 최신 파일 내용을 다시 GET으로 가져와서 SHA 값을 갱신
-        const currentData = await this.getLedgerFromGithub();
-
-        // Encode str to base64 properly with UTF-8
-        const base64Content = window.btoa(unescape(encodeURIComponent(newContentStr)));
-
-        const bodyData = {
-            message: `Update ledger.json via PWA at ${new Date().toISOString()}`,
-            content: base64Content,
-        };
-        // include sha if the file exists
-        if (currentData.sha) {
-            bodyData.sha = currentData.sha;
+    async syncData() {
+        if (!this.githubApi) {
+            alert('인증 정보가 없습니다. 다시 로그인 해주세요.');
+            return;
         }
 
-        const response = await fetch(GITHUB_API_URL, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${this.githubPat}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(bodyData)
-        });
+        if (this.syncQueue.length === 0) {
+            alert('동기화할 내역이 없습니다.');
+            return;
+        }
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`File update failed: ${errorData.message}`);
+        const syncBadge = document.getElementById('sync-badge');
+        syncBadge.textContent = '...';
+
+        this.showTyping();
+        try {
+            // Group queue by YYYY-MM-DD
+            const groupedQueue = {};
+            this.syncQueue.forEach(item => {
+                if (!item.date) return;
+                const pathParts = item.date.split('-');
+                if (pathParts.length !== 3) return;
+
+                const year = pathParts[0];
+                const month = pathParts[1];
+                const day = pathParts[2];
+                // Using data path structure compatible with GithubApi
+                const filePath = `data/${year}/${month}/${year}-${month}-${day}.json`;
+
+                if (!groupedQueue[filePath]) groupedQueue[filePath] = [];
+                groupedQueue[filePath].push(item);
+            });
+
+            // Process each file separately
+            for (const [filePath, queueItems] of Object.entries(groupedQueue)) {
+                await this.githubApi.syncSingleFile(filePath, queueItems);
+            }
+
+            // Sync successful
+            this.syncQueue = [];
+            this.saveSyncQueue();
+
+            // Reload Current Month Data
+            await this.loadData();
+
+            alert('동기화가 완료되었습니다! ✨');
+
+        } catch (err) {
+            console.error(err);
+            alert(`동기화 중 오류가 발생했습니다: ${err.message}`);
+        } finally {
+            this.hideTyping();
+            this.updateSyncBadge();
         }
     }
 };
