@@ -6,6 +6,7 @@
 
 import { v4 as uuidv4 } from "uuid";
 import { GithubApi } from "./github-api.js";
+import { Solar, Lunar } from "lunar-javascript";
 
 const GITHUB_OWNER = 'bottleiron';
 const GITHUB_REPO = 'my-ledger-data';
@@ -202,6 +203,35 @@ const app = {
             }
         });
 
+        // Anniversaries definition
+        const ANNIVERSARIES = [
+            { type: 'solar', m: 2, d: 1, icon: '💍', label: '결혼기념일' },
+            { type: 'solar', m: 9, d: 22, icon: '👱‍♂️', label: '남편 생일' },
+            { type: 'solar', m: 10, d: 8, icon: '👩', label: '아내 생일' },
+            { type: 'lunar', m: 2, d: 22, icon: '👵', label: '처가 장모님 생신' },
+            { type: 'lunar', m: 4, d: 4, icon: '👴', label: '본가 아버님 생신' },
+            { type: 'lunar', m: 11, d: 21, icon: '👵', label: '본가 어머님 생신' }
+        ];
+
+        const dailyAnniversaries = {};
+        for (let day = 1; day <= daysInMonth; day++) {
+            const matches = [];
+            // Check Solar
+            matches.push(...ANNIVERSARIES.filter(a => a.type === 'solar' && a.m === month && a.d === day));
+            // Check Lunar
+            try {
+                const solarObj = Solar.fromYmd(year, month, day);
+                const lunarObj = solarObj.getLunar();
+                matches.push(...ANNIVERSARIES.filter(a => a.type === 'lunar' && a.m === Math.abs(lunarObj.getMonth()) && a.d === lunarObj.getDay()));
+            } catch (e) {
+                console.warn('Lunar conversion skipped for day', day);
+            }
+
+            if (matches.length > 0) {
+                dailyAnniversaries[day] = matches;
+            }
+        }
+
         for (let i = 0; i < firstDay; i++) {
             grid.innerHTML += `<div class="cal-day empty"></div>`;
         }
@@ -209,9 +239,18 @@ const app = {
         for (let day = 1; day <= daysInMonth; day++) {
             const isToday = isCurrentMonth && day === today.getDate() ? 'today' : '';
             const amountHtml = dailyTotals[day] ? `<div class="cal-amount">${dailyTotals[day].toLocaleString()}</div>` : '';
+
+            let anniversaryHtml = '';
+            if (dailyAnniversaries[day]) {
+                const icons = dailyAnniversaries[day].map(a => `<span title="${a.label}">${a.icon}</span>`).join('');
+                anniversaryHtml = `<div class="cal-anniversary">${icons}</div>`;
+            }
+
+            // apply inline relative position for absolute marking
             grid.innerHTML += `
-                <div class="cal-day ${isToday}" onclick="app.openDayModal(${year}, ${month}, ${day})">
+                <div class="cal-day ${isToday}" style="position:relative;" onclick="app.openDayModal(${year}, ${month}, ${day})">
                     <div class="cal-date">${day}</div>
+                    ${anniversaryHtml}
                     ${amountHtml}
                 </div>
             `;

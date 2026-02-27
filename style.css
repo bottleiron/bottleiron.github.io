@@ -611,6 +611,16 @@ body {
     width: 100%;
 }
 
+.cal-anniversary {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 11px;
+    line-height: 1;
+    display: flex;
+    gap: 2px;
+}
+
 /* --- Fixed Expenses Widget --- */
 .fixed-expenses-widget {
     margin: 0 20px 20px;
