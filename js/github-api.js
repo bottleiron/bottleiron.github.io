@@ -26,8 +26,8 @@ export class GithubApi {
             if (!Array.isArray(yearFolders)) return [];
 
             let allLedgerData = [];
-            // For each year, get months
-            for (const yearFolder of yearFolders.filter(f => f.type === 'dir')) {
+            // For each year (exactly 4 digits), get months
+            for (const yearFolder of yearFolders.filter(f => f.type === 'dir' && /^\d{4}$/.test(f.name))) {
                 const { data: monthFolders } = await this.octokit.rest.repos.getContent({
                     owner: this.owner,
                     repo: this.repo,
@@ -185,6 +185,29 @@ export class GithubApi {
     async getFixedExpenses() {
         const path = `${BASE_DATA_PATH}/settings/fixed_expenses.json`;
         try {
+            // First check if the file exists to avoid 404 console error
+            const { data: dataDirContent } = await this.octokit.rest.repos.getContent({
+                owner: this.owner,
+                repo: this.repo,
+                path: BASE_DATA_PATH,
+            });
+
+            if (Array.isArray(dataDirContent)) {
+                const settingsDir = dataDirContent.find(f => f.name === 'settings' && f.type === 'dir');
+                if (!settingsDir) return [];
+
+                const { data: settingsDirContent } = await this.octokit.rest.repos.getContent({
+                    owner: this.owner,
+                    repo: this.repo,
+                    path: settingsDir.path,
+                });
+
+                if (Array.isArray(settingsDirContent)) {
+                    const hasFile = settingsDirContent.some(f => f.name === 'fixed_expenses.json');
+                    if (!hasFile) return [];
+                }
+            }
+
             const { data } = await this.octokit.rest.repos.getContent({
                 owner: this.owner,
                 repo: this.repo,
