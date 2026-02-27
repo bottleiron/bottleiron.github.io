@@ -741,7 +741,17 @@ body {
 }
 
 .stats-sub-view.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.stats-container {
+    padding: 0 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 .stats-month-nav {
@@ -810,6 +820,7 @@ body {
     border-radius: 20px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
     padding: 16px 8px;
+    overflow: visible;
 }
 
 .trend-chart-container canvas {
@@ -827,11 +838,11 @@ body {
     border-radius: 12px;
     font-size: 12px;
     min-width: 140px;
-    z-index: 100;
+    z-index: 999;
     pointer-events: none;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(8px);
-    transform: translateY(-100%);
+    transform: translateY(10px);
 }
 
 .tt-title {
