@@ -615,6 +615,8 @@ const app = {
                 await this.processAddFixed(intentResp.data);
             } else if (intentResp.intent === "DELETE") {
                 await this.processDeleteExpense(text);
+            } else if (intentResp.intent === "EDIT") {
+                await this.processEditExpense(text);
             } else if (intentResp.intent === "INQUIRY_SUMMARY") {
                 await this.processInquirySummary(text, intentResp.data);
             } else {
@@ -657,12 +659,16 @@ const app = {
 사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
 {"intent": "DELETE", "data": null}
 
-4. 특정 내역 조회 및 질문 (intent: "INQUIRY")
+4. 지출 내역 수정 (intent: "EDIT")
+사용자가 기존에 입력한 가계부 내역의 금액, 상호명, 카테고리 등을 수정하거나 변경해달라고 요청하는 경우. 예: "어제 스타벅스 5000원 금액 4500원으로 바꿔줘", "2월 25일 관리비 카테고리 공과금으로 수정해줘"
+{"intent": "EDIT", "data": null}
+
+5. 특정 내역 조회 및 질문 (intent: "INQUIRY")
 사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
 없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
 {"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
-5. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
+6. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
 사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
 {"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
@@ -1117,6 +1123,87 @@ ${JSON.stringify(this.allLedgerData.slice(0, 50))}
         this.renderStats();
 
         this.appendMessage(`요청하신 지출 내역 ${deletedCount}건 삭제를 예약했습니다. 🗑️ (동기화 버튼을 눌러 확정해주세요)`, 'bot');
+    },
+
+    /**
+     * Edit expense via chat using Gemini to identify target and changes
+     */
+    async processEditExpense(userText) {
+        if (this.allLedgerData.length === 0) {
+            this.appendMessage('가계부가 비어있어 수정할 내용이 없습니다.', 'bot');
+            return;
+        }
+
+        const prompt = `
+아래는 현재 가계부 내역(JSON 배열)의 최근 50건입니다.
+사용자는 이 중에서 특정 지출 항목을 수정해달라고 요청했습니다.
+요청에 해당하는 항목의 **id**를 찾고, 수정할 필드와 새 값을 아래 JSON 형식으로만 출력하세요.
+카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 기타 중에서 골라주세요.
+부연 설명이나 마크다운 문법 없이 오직 JSON만 출력해야 합니다.
+
+일치하는 항목이 없으면: {"id": null}
+일치하는 항목이 있으면: {"id": "대상id", "changes": {"변경할필드": "새값"}}
+changes에 들어갈 수 있는 필드: place(상호명), amount(금액, 숫자), category(카테고리)
+
+사용자 요청: "${userText}"
+현재 가계부 내역 (일부):
+${JSON.stringify(this.allLedgerData.slice(0, 50))}
+`;
+        const resultStr = await this.fetchGemini(prompt);
+        let editResult;
+        try {
+            editResult = JSON.parse(resultStr);
+        } catch (e) {
+            throw new Error("AI가 수정 대상을 올바르게 파악하지 못했습니다.");
+        }
+
+        if (!editResult.id) {
+            this.appendMessage('해당하는 지출 내역을 가계부에서 찾지 못했어요. (날짜, 금액, 상호명을 정확히 알려주세요)', 'bot');
+            return;
+        }
+
+        const originalItem = this.allLedgerData.find(item => item.id === editResult.id);
+        if (!originalItem) {
+            this.appendMessage('해당하는 지출 내역을 찾지 못했어요.', 'bot');
+            return;
+        }
+
+        // Apply changes
+        const editedItem = { ...originalItem };
+        const changes = editResult.changes || {};
+        let changeDesc = [];
+
+        if (changes.place) {
+            changeDesc.push(`상호명: ${originalItem.place} → ${changes.place}`);
+            editedItem.place = changes.place;
+        }
+        if (changes.amount !== undefined) {
+            const newAmt = Number(changes.amount);
+            changeDesc.push(`금액: ${new Intl.NumberFormat('ko-KR').format(originalItem.amount)}원 → ${new Intl.NumberFormat('ko-KR').format(newAmt)}원`);
+            editedItem.amount = newAmt;
+        }
+        if (changes.category) {
+            changeDesc.push(`카테고리: ${originalItem.category || '기타'} → ${changes.category}`);
+            editedItem.category = changes.category;
+        }
+
+        if (changeDesc.length === 0) {
+            this.appendMessage('수정할 내용을 파악하지 못했어요. 다시 말씀해 주세요.', 'bot');
+            return;
+        }
+
+        editedItem._action = 'add'; // same id = overwrite
+        editedItem.timestamp = Date.now();
+
+        this.syncQueue.push(editedItem);
+        this.saveSyncQueue();
+        this.mergeQueueToLedger();
+
+        this.updateDashboard();
+        this.renderCalendar();
+        this.renderStats();
+
+        this.appendMessage(`✏️ 수정 완료!\n${changeDesc.join('\n')}\n(동기화 버튼을 눌러 확정해주세요)`, 'bot');
     },
 
     /**
