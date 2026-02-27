@@ -284,32 +284,96 @@ const app = {
 
         if (totalMonth === 0) {
             chartContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;">지출 내역이 없습니다.</div>';
-            return;
+        } else {
+            const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+
+            sortedCategories.forEach(([cat, amount]) => {
+                const percentage = ((amount / totalMonth) * 100).toFixed(1);
+
+                chartContainer.innerHTML += `
+                    <div class="stat-bar-container">
+                        <div class="stat-info">
+                            <span>${cat}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="stat-bar-bg">
+                            <div class="stat-bar-fill" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+
+                listContainer.innerHTML += `
+                    <div class="stat-item">
+                        <span class="stat-cat">${cat}</span>
+                        <span class="stat-amt">₩ ${amount.toLocaleString()}</span>
+                    </div>
+                `;
+            });
         }
 
-        const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+        // Render monthly trend chart
+        this.renderTrendChart();
+    },
 
-        sortedCategories.forEach(([cat, amount]) => {
-            const percentage = ((amount / totalMonth) * 100).toFixed(1);
+    trendPeriod: 3,
 
-            chartContainer.innerHTML += `
-                <div class="stat-bar-container">
-                    <div class="stat-info">
-                        <span>${cat}</span>
-                        <span>${percentage}%</span>
-                    </div>
-                    <div class="stat-bar-bg">
-                        <div class="stat-bar-fill" style="width: ${percentage}%"></div>
-                    </div>
+    setTrendPeriod(months) {
+        this.trendPeriod = months;
+
+        // Update active button
+        document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent === `${months}개월`) {
+                btn.classList.add('active');
+            }
+        });
+
+        this.renderTrendChart();
+    },
+
+    renderTrendChart() {
+        const container = document.getElementById('trend-chart');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const now = new Date();
+        const months = [];
+
+        // Generate month labels for the period
+        for (let i = this.trendPeriod - 1; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            const prefix = `${y}-${String(m).padStart(2, '0')}`;
+            const label = `${m}월`;
+
+            let total = 0;
+            this.allLedgerData.forEach(item => {
+                if (item.date && item.date.startsWith(prefix)) {
+                    total += Number(item.amount);
+                }
+            });
+
+            months.push({ label, total, prefix });
+        }
+
+        // Find max for scaling
+        const maxTotal = Math.max(...months.map(m => m.total), 1);
+
+        months.forEach(m => {
+            const heightPercent = (m.total / maxTotal) * 100;
+            const formattedAmt = m.total > 0 ? `₩${(m.total / 10000).toFixed(0)}만` : '-';
+
+            const barDiv = document.createElement('div');
+            barDiv.className = 'trend-bar-wrap';
+            barDiv.innerHTML = `
+                <div class="trend-bar-label">${formattedAmt}</div>
+                <div class="trend-bar-track">
+                    <div class="trend-bar-fill" style="height: ${Math.max(heightPercent, 2)}%"></div>
                 </div>
+                <div class="trend-bar-month">${m.label}</div>
             `;
-
-            listContainer.innerHTML += `
-                <div class="stat-item">
-                    <span class="stat-cat">${cat}</span>
-                    <span class="stat-amt">₩ ${amount.toLocaleString()}</span>
-                </div>
-            `;
+            container.appendChild(barDiv);
         });
     },
 

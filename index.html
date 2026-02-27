@@ -157,6 +157,21 @@
 
                 <!-- Stats View -->
                 <section id="stats-view" class="view-hidden">
+                    <!-- Monthly Trend Chart -->
+                    <div class="trend-section">
+                        <div class="trend-header">
+                            <h2 class="stats-title" style="padding:0;">월별 지출 추이</h2>
+                            <div class="period-btns">
+                                <button class="period-btn active" onclick="app.setTrendPeriod(3)">3개월</button>
+                                <button class="period-btn" onclick="app.setTrendPeriod(6)">6개월</button>
+                                <button class="period-btn" onclick="app.setTrendPeriod(12)">12개월</button>
+                            </div>
+                        </div>
+                        <div class="trend-chart" id="trend-chart">
+                            <!-- Bars will be generated here -->
+                        </div>
+                    </div>
+
                     <h2 class="stats-title">이번 달 분류별 지출</h2>
                     <div class="stats-container">
                         <div class="stats-chart" id="stats-chart">
