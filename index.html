@@ -157,8 +157,29 @@
 
                 <!-- Stats View -->
                 <section id="stats-view" class="view-hidden">
-                    <!-- Monthly Trend Chart -->
-                    <div class="trend-section">
+                    <!-- Sub Tab Bar -->
+                    <div class="stats-sub-tabs">
+                        <button class="stats-sub-tab active" data-stats-view="category"
+                            onclick="app.switchStatsTab('category')">분류별 통계</button>
+                        <button class="stats-sub-tab" data-stats-view="trend" onclick="app.switchStatsTab('trend')">월별
+                            추이</button>
+                    </div>
+
+                    <!-- Category Stats Sub-View -->
+                    <div id="stats-category-view" class="stats-sub-view active">
+                        <div class="stats-month-nav">
+                            <button class="nav-btn" onclick="app.changeStatsMonth(-1)">&#10094;</button>
+                            <h2 id="stats-month-label" class="stats-title" style="padding:0;">2026년 2월</h2>
+                            <button class="nav-btn" onclick="app.changeStatsMonth(1)">&#10095;</button>
+                        </div>
+                        <div class="stats-container">
+                            <div class="stats-chart" id="stats-chart"></div>
+                            <div class="stats-list" id="stats-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Trend Sub-View -->
+                    <div id="stats-trend-view" class="stats-sub-view">
                         <div class="trend-header">
                             <h2 class="stats-title" style="padding:0;">월별 지출 추이</h2>
                             <div class="period-btns">
@@ -167,18 +188,9 @@
                                 <button class="period-btn" onclick="app.setTrendPeriod(12)">12개월</button>
                             </div>
                         </div>
-                        <div class="trend-chart" id="trend-chart">
-                            <!-- Bars will be generated here -->
-                        </div>
-                    </div>
-
-                    <h2 class="stats-title">이번 달 분류별 지출</h2>
-                    <div class="stats-container">
-                        <div class="stats-chart" id="stats-chart">
-                            <!-- Bars will be generated here -->
-                        </div>
-                        <div class="stats-list" id="stats-list">
-                            <!-- List items will be generated here -->
+                        <div class="trend-chart-container">
+                            <canvas id="trend-canvas" width="400" height="220"></canvas>
+                            <div id="trend-tooltip" class="trend-tooltip"></div>
                         </div>
                     </div>
                 </section>

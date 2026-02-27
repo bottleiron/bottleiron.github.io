@@ -260,121 +260,162 @@ const app = {
         this.renderFixedExpenses(year, month);
     },
 
-    renderStats() {
-        const year = this.currentDate.getFullYear();
-        const month = this.currentDate.getMonth() + 1;
+    statsDate: null,
+    trendPeriod: 3,
+    _trendMonthsData: [],
+    _trendPoints: [],
 
+    getStatsDate() {
+        if (!this.statsDate) this.statsDate = new Date(this.currentDate);
+        return this.statsDate;
+    },
+
+    changeStatsMonth(delta) {
+        const d = this.getStatsDate();
+        d.setMonth(d.getMonth() + delta);
+        this.renderCategoryStats();
+    },
+
+    switchStatsTab(tab) {
+        document.querySelectorAll('.stats-sub-tab').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-stats-view') === tab);
+        });
+        const catView = document.getElementById('stats-category-view');
+        const trendView = document.getElementById('stats-trend-view');
+        if (catView) catView.classList.toggle('active', tab === 'category');
+        if (trendView) trendView.classList.toggle('active', tab === 'trend');
+        if (tab === 'trend') this.renderTrendChart();
+    },
+
+    renderStats() {
+        this.renderCategoryStats();
+        const trendView = document.getElementById('stats-trend-view');
+        if (trendView && trendView.classList.contains('active')) this.renderTrendChart();
+    },
+
+    renderCategoryStats() {
+        const d = this.getStatsDate();
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const label = document.getElementById('stats-month-label');
+        if (label) label.textContent = `${year}년 ${month}월`;
         const categoryTotals = {};
         let totalMonth = 0;
-
+        const prefix = `${year}-${String(month).padStart(2, '0')}`;
         this.allLedgerData.forEach(item => {
-            if (item.date && item.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)) {
+            if (item.date && item.date.startsWith(prefix)) {
                 const cat = item.category || '기타';
                 categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
                 totalMonth += Number(item.amount);
             }
         });
-
         const chartContainer = document.getElementById('stats-chart');
         const listContainer = document.getElementById('stats-list');
         if (!chartContainer || !listContainer) return;
-
         chartContainer.innerHTML = '';
         listContainer.innerHTML = '';
-
         if (totalMonth === 0) {
-            chartContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;">지출 내역이 없습니다.</div>';
+            chartContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px 0;">지출 내역이 없습니다.</div>';
         } else {
-            const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
-
-            sortedCategories.forEach(([cat, amount]) => {
-                const percentage = ((amount / totalMonth) * 100).toFixed(1);
-
-                chartContainer.innerHTML += `
-                    <div class="stat-bar-container">
-                        <div class="stat-info">
-                            <span>${cat}</span>
-                            <span>${percentage}%</span>
-                        </div>
-                        <div class="stat-bar-bg">
-                            <div class="stat-bar-fill" style="width: ${percentage}%"></div>
-                        </div>
-                    </div>
-                `;
-
-                listContainer.innerHTML += `
-                    <div class="stat-item">
-                        <span class="stat-cat">${cat}</span>
-                        <span class="stat-amt">₩ ${amount.toLocaleString()}</span>
-                    </div>
-                `;
+            listContainer.innerHTML = `<div class="stat-item" style="background:var(--primary-light);border-radius:10px;margin-bottom:4px;"><span class="stat-cat" style="color:var(--primary);">총 지출</span><span class="stat-amt" style="color:var(--primary);font-size:16px;">₩ ${totalMonth.toLocaleString()}</span></div>`;
+            const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+            sorted.forEach(([cat, amount]) => {
+                const pct = ((amount / totalMonth) * 100).toFixed(1);
+                chartContainer.innerHTML += `<div class="stat-bar-container"><div class="stat-info"><span>${cat}</span><span>${pct}%</span></div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div></div>`;
+                listContainer.innerHTML += `<div class="stat-item"><span class="stat-cat">${cat}</span><span class="stat-amt">₩ ${amount.toLocaleString()}</span></div>`;
             });
         }
-
-        // Render monthly trend chart
-        this.renderTrendChart();
     },
-
-    trendPeriod: 3,
 
     setTrendPeriod(months) {
         this.trendPeriod = months;
-
-        // Update active button
-        document.querySelectorAll('.period-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.textContent === `${months}개월`) {
-                btn.classList.add('active');
-            }
-        });
-
+        document.querySelectorAll('.period-btn').forEach(btn => btn.classList.toggle('active', btn.textContent === `${months}개월`));
         this.renderTrendChart();
     },
 
     renderTrendChart() {
-        const container = document.getElementById('trend-chart');
-        if (!container) return;
-        container.innerHTML = '';
-
+        const canvas = document.getElementById('trend-canvas');
+        if (!canvas) return;
+        const container = canvas.parentElement;
+        canvas.width = container.clientWidth || 380;
+        canvas.height = 220;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const pad = { top: 30, right: 20, bottom: 35, left: 50 };
+        ctx.clearRect(0, 0, W, H);
         const now = new Date();
-        const months = [];
-
-        // Generate month labels for the period
+        const mData = [];
         for (let i = this.trendPeriod - 1; i >= 0; i--) {
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const y = d.getFullYear();
-            const m = d.getMonth() + 1;
-            const prefix = `${y}-${String(m).padStart(2, '0')}`;
-            const label = `${m}월`;
-
+            const y = d.getFullYear(), m = d.getMonth() + 1;
+            const pfx = `${y}-${String(m).padStart(2, '0')}`;
             let total = 0;
+            const catTotals = {};
             this.allLedgerData.forEach(item => {
-                if (item.date && item.date.startsWith(prefix)) {
+                if (item.date && item.date.startsWith(pfx)) {
                     total += Number(item.amount);
+                    const cat = item.category || '기타';
+                    catTotals[cat] = (catTotals[cat] || 0) + Number(item.amount);
                 }
             });
-
-            months.push({ label, total, prefix });
+            mData.push({ label: `${m}월`, total, catTotals, year: y, month: m });
         }
-
-        // Find max for scaling
-        const maxTotal = Math.max(...months.map(m => m.total), 1);
-
-        months.forEach(m => {
-            const heightPercent = (m.total / maxTotal) * 100;
-            const formattedAmt = m.total > 0 ? `₩${(m.total / 10000).toFixed(0)}만` : '-';
-
-            const barDiv = document.createElement('div');
-            barDiv.className = 'trend-bar-wrap';
-            barDiv.innerHTML = `
-                <div class="trend-bar-label">${formattedAmt}</div>
-                <div class="trend-bar-track">
-                    <div class="trend-bar-fill" style="height: ${Math.max(heightPercent, 2)}%"></div>
-                </div>
-                <div class="trend-bar-month">${m.label}</div>
-            `;
-            container.appendChild(barDiv);
+        this._trendMonthsData = mData;
+        const maxT = Math.max(...mData.map(m => m.total), 1);
+        const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const gy = pad.top + (cH / 4) * i;
+            ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(W - pad.right, gy); ctx.stroke();
+            ctx.fillStyle = '#94a3b8'; ctx.font = '10px Outfit, sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText(`${((maxT - (maxT / 4) * i) / 10000).toFixed(0)}만`, pad.left - 8, gy + 4);
+        }
+        const pts = mData.map((m, idx) => ({
+            x: pad.left + (cW / Math.max(mData.length - 1, 1)) * idx,
+            y: pad.top + cH - (m.total / maxT) * cH,
+            data: m
+        }));
+        this._trendPoints = pts;
+        if (pts.length > 1) {
+            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) { const xc = (pts[i - 1].x + pts[i].x) / 2, yc = (pts[i - 1].y + pts[i].y) / 2; ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc); }
+            ctx.quadraticCurveTo(pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y);
+            ctx.lineTo(pts[pts.length - 1].x, pad.top + cH); ctx.lineTo(pts[0].x, pad.top + cH); ctx.closePath();
+            const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+            grad.addColorStop(0, 'rgba(99,102,241,0.25)'); grad.addColorStop(1, 'rgba(99,102,241,0.02)');
+            ctx.fillStyle = grad; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) { const xc = (pts[i - 1].x + pts[i].x) / 2, yc = (pts[i - 1].y + pts[i].y) / 2; ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc); }
+            ctx.quadraticCurveTo(pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y);
+            ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2.5; ctx.stroke();
+        }
+        pts.forEach(p => {
+            ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fillStyle = '#6366f1'; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fillStyle = 'white'; ctx.fill();
+            ctx.fillStyle = '#334155'; ctx.font = '10px Outfit, sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(p.data.label, p.x, H - pad.bottom + 16);
         });
+        canvas.onmousemove = (e) => { const r = canvas.getBoundingClientRect(); this._showTrendTooltip(e.clientX - r.left, e.clientY - r.top, canvas); };
+        canvas.onmouseleave = () => { const tt = document.getElementById('trend-tooltip'); if (tt) tt.style.display = 'none'; };
+        canvas.ontouchmove = (e) => { e.preventDefault(); const t = e.touches[0], r = canvas.getBoundingClientRect(); this._showTrendTooltip(t.clientX - r.left, t.clientY - r.top, canvas); };
+        canvas.ontouchend = () => { const tt = document.getElementById('trend-tooltip'); if (tt) tt.style.display = 'none'; };
+    },
+
+    _showTrendTooltip(mx, my, canvas) {
+        if (!this._trendPoints || !this._trendPoints.length) return;
+        const tt = document.getElementById('trend-tooltip');
+        if (!tt) return;
+        let closest = null, minD = Infinity;
+        this._trendPoints.forEach(p => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = p; } });
+        if (!closest || minD > 30) { tt.style.display = 'none'; return; }
+        const d = closest.data;
+        let html = `<div class="tt-title">${d.year}년 ${d.month}월</div><div class="tt-total">총 ₩${d.total.toLocaleString()}</div>`;
+        if (d.total > 0) { Object.entries(d.catTotals).sort((a, b) => b[1] - a[1]).forEach(([cat, amt]) => { html += `<div class="tt-row"><span>${cat}</span><span>₩${amt.toLocaleString()}</span></div>`; }); }
+        tt.innerHTML = html; tt.style.display = 'block';
+        const cW = canvas.parentElement.clientWidth;
+        let left = closest.x - 70;
+        if (left < 5) left = 5; if (left + 150 > cW) left = cW - 155;
+        tt.style.left = `${left}px`; tt.style.top = `${Math.max(closest.y - 10, 5)}px`;
     },
 
     // ==========================================
