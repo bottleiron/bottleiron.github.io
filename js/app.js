@@ -528,6 +528,8 @@ const app = {
 
             if (intentResp.intent === "ADD") {
                 await this.processAddExpense(intentResp.data);
+            } else if (intentResp.intent === "ADD_FIXED") {
+                await this.processAddFixed(intentResp.data);
             } else if (intentResp.intent === "DELETE") {
                 await this.processDeleteExpense(text);
             } else if (intentResp.intent === "INQUIRY_SUMMARY") {
@@ -558,22 +560,26 @@ const app = {
 당신은 가계부 작성 AI 비서입니다.
 오늘 날짜는 ${today} 입니다. 날짜가 '오늘', '어제' 등으로 오면 이를 계산하세요.
 현재 사용자는 "${this.currentUser}" 입니다. 별도로 결제자를 지정하지 않으면 결제자는 "${this.currentUser}"(으)로 설정하세요.
-사용자의 입력을 분석하여 다음 세 가지 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
+사용자의 입력을 분석하여 다음 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
 
 1. 지출 내역 추가 (intent: "ADD")
 사용자가 돈을 썼다는 내용일 경우, 아래 구조로 데이터를 추출하세요 (금액은 숫자만). 카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 기타 중에서 가장 적합한 것을 고르세요.
 {"intent": "ADD", "data": {"date": "YYYY-MM-DD", "amount": 10000, "place": "상호명", "payer": "결제자", "category": "분류"}}
 
-2. 지출 내역 삭제 (intent: "DELETE")
+2. 고정비 등록 (intent: "ADD_FIXED")
+사용자가 "매달", "매월", "고정비", "정기", "자동이체" 등 반복적인 지출 항목을 등록하려는 경우. 매달 몇 일에 납부하는지(pay_day), 항목명(name), 금액(amount), 카테고리(category)를 추출하세요.
+{"intent": "ADD_FIXED", "data": {"name": "항목명", "pay_day": 1, "amount": 150000, "category": "분류"}}
+
+3. 지출 내역 삭제 (intent: "DELETE")
 사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
 {"intent": "DELETE", "data": null}
 
-3. 특정 내역 조회 및 질문 (intent: "INQUIRY")
+4. 특정 내역 조회 및 질문 (intent: "INQUIRY")
 사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
 없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
 {"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
-4. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
+5. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
 사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
 {"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
@@ -641,6 +647,42 @@ ${ledgerStr}
     // ==========================================
     // FIXED EXPENSES LOGIC
     // ==========================================
+
+    /**
+     * Process ADD_FIXED intent from chat
+     */
+    async processAddFixed(fixedData) {
+        if (!fixedData || !fixedData.name || !fixedData.amount) {
+            this.appendMessage('고정비 정보를 정확히 인식하지 못했어요. "매달 1일에 관리비 15만원 고정비 등록해줘"처럼 말해보세요!', 'bot');
+            return;
+        }
+
+        const newFixed = {
+            id: uuidv4(),
+            name: fixedData.name,
+            pay_day: fixedData.pay_day || 1,
+            amount: fixedData.amount,
+            category: fixedData.category || '기타'
+        };
+
+        this.fixedExpenses.push(newFixed);
+
+        this.syncQueue.push({
+            _action: 'settings_fixed',
+            data: this.fixedExpenses
+        });
+        this.saveSyncQueue();
+
+        // Update cache
+        localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(this.fixedExpenses));
+
+        const year = this.currentDate.getFullYear();
+        const month = this.currentDate.getMonth() + 1;
+        this.renderFixedExpenses(year, month);
+
+        const formatedAmt = new Intl.NumberFormat('ko-KR').format(newFixed.amount);
+        this.appendMessage(`📌 고정비 등록 완료!\n${newFixed.name} · 매월 ${newFixed.pay_day}일 · ${formatedAmt}원 (${newFixed.category})\n동기화 버튼을 눌러 확정해주세요!`, 'bot');
+    },
 
     renderFixedExpenses(year, month) {
         const widgetList = document.getElementById('fixed-expenses-list');
