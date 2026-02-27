@@ -763,6 +763,7 @@ ${ledgerStr}
         const nameInput = document.getElementById('add-fixed-name');
         const dayInput = document.getElementById('add-fixed-day');
         const amountInput = document.getElementById('add-fixed-amount');
+        const categoryInput = document.getElementById('add-fixed-category');
 
         if (!nameInput.value.trim() || !dayInput.value || !amountInput.value) {
             alert('항목명, 이체일, 금액을 모두 정확히 입력해 주세요.');
@@ -774,7 +775,7 @@ ${ledgerStr}
             name: nameInput.value.trim(),
             pay_day: parseInt(dayInput.value, 10),
             amount: parseInt(amountInput.value, 10),
-            category: "기타" // UI 간소화를 위해 기타 처리 또는 향후 select박스 확장 가능
+            category: categoryInput.value
         };
 
         this.fixedExpenses.push(newFixed);
