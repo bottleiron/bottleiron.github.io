@@ -478,6 +478,8 @@ const app = {
                 await this.processAddExpense(intentResp.data);
             } else if (intentResp.intent === "DELETE") {
                 await this.processDeleteExpense(text);
+            } else if (intentResp.intent === "INQUIRY_SUMMARY") {
+                await this.processInquirySummary(text, intentResp.data);
             } else {
                 await this.processInquiry(text, intentResp.data);
             }
@@ -514,10 +516,14 @@ const app = {
 사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
 {"intent": "DELETE", "data": null}
 
-3. 내역 조회 및 질문 (intent: "INQUIRY")
-사용자가 과거 내역에 대해 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
-없으면 null로 처리하세요. (예: "작년 식비 얼마야?" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
+3. 특정 내역 조회 및 질문 (intent: "INQUIRY")
+사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
+없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
 {"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
+
+4. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
+사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
+{"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
 사용자 입력: "${userText}"
 `;
@@ -747,34 +753,97 @@ ${JSON.stringify(this.allLedgerData.slice(0, 50))}
     },
 
     /**
-     * Analyze and respond based on existing ledger contents (SMART RAG)
+     * Convert JSON array to lightweight CSV string to save LLM tokens.
+     */
+    convertToCSV(dataArray) {
+        if (!dataArray || dataArray.length === 0) return "No Data";
+        // Extract essential keys only
+        const header = "date,amount,category,place,payer";
+        const rows = dataArray.map(item => {
+            return `${item.date},${item.amount},${item.category || ''},"${(item.place || '').replace(/"/g, '""')}",${item.payer || ''}`;
+        });
+        return [header, ...rows].join('\n');
+    },
+
+    /**
+     * Analyze and respond based on existing ledger contents (SMART RAG / INQUIRY)
      */
     async processInquiry(userText, filterData = null) {
         let targetData = this.allLedgerData;
 
-        // 1. Pre-filter data to save LLM tokens and cost (Smart RAG 3-Step)
+        // 1. Pre-filter data to save LLM tokens and cost
         if (filterData) {
             targetData = targetData.filter(item => {
                 let match = true;
                 if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
                 if (filterData.category && item.category !== filterData.category) match = false;
-                // Optional: add place or keyword filtering if needed
                 return match;
             });
         }
 
-        // If even after filtering data is huge, we might slice it, but usually filtering drops it significantly.
-        // Let's protect against huge token usage:
         if (targetData.length > 300) {
             targetData = targetData.slice(0, 300);
             this.appendMessage('⚠️ 데이터가 너무 많아 최근 300건만 분석합니다.', 'bot');
         }
 
-        let ledgerStr = JSON.stringify(targetData);
+        // 2. Compress payload via CSV
+        let ledgerCsvStr = this.convertToCSV(targetData);
 
-        // 2. Send context + question to Gemini
-        const aiAnswerHtml = await this.askGeminiRAG(userText, ledgerStr);
-        // 3. Display answer
+        // 3. Send context + question to Gemini
+        const aiAnswerHtml = await this.askGeminiRAG(userText, ledgerCsvStr);
+        this.appendMessage(aiAnswerHtml, 'bot', true);
+    },
+
+    /**
+     * Process summary/aggregation intent using JS reduce.
+     */
+    async processInquirySummary(userText, filterData = null) {
+        let targetData = this.allLedgerData;
+
+        if (filterData) {
+            targetData = targetData.filter(item => {
+                let match = true;
+                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
+                if (filterData.category && item.category !== filterData.category) match = false;
+                return match;
+            });
+        }
+
+        if (targetData.length === 0) {
+            this.appendMessage('해당 조건에 맞는 지출 내역이 없습니다.', 'bot');
+            return;
+        }
+
+        // JS Local Reduce to create lightweight summary
+        const totalAmount = targetData.reduce((sum, item) => sum + Number(item.amount), 0);
+
+        // Group by category if user wants detailed breakdown, but simple total is enough for LLM to elaborate
+        const categorySummary = targetData.reduce((acc, item) => {
+            const cat = item.category || '기타';
+            acc[cat] = (acc[cat] || 0) + Number(item.amount);
+            return acc;
+        }, {});
+
+        const summaryObj = {
+            query_filter: filterData,
+            total_items_count: targetData.length,
+            total_amount: totalAmount,
+            by_category: categorySummary
+        };
+
+        const summaryJsonStr = JSON.stringify(summaryObj);
+
+        const prompt = `
+당신은 가계부 상담 AI입니다.
+사용자가 통계/합산 정보를 요구하여 시스템 내에서 자체적으로 금액을 합산(Reduce)한 결과표를 드립니다.
+아래의 요약된 시스템 자체 계산 결과를 바탕으로 사용자에게 자연스럽고 친절하게(보고서 또는 대화 형태) 안내해 주세요.
+
+시스템 합산 요약 결과:
+${summaryJsonStr}
+
+사용자 질문: "${userText}"
+        `;
+        const aiAnswerHtml = await this.fetchGemini(prompt);
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
 
