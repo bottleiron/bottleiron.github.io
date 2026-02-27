@@ -1020,11 +1020,23 @@ body {
 }
 
 .modal-body {
-    overflow-y: auto;
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 24px;
+    overflow: hidden;
+    /* Only scroll inner lists */
+}
+
+.expense-list-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.add-expense-container {
+    flex-shrink: 0;
 }
 
 .section-title {
@@ -1038,6 +1050,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
 }
 
 .expense-item {
