@@ -671,6 +671,22 @@ body {
 .fixed-expenses-list {
     border-top: 1px solid #f1f5f9;
     padding: 10px 0;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+/* Scrollbar styling for fixed expenses list */
+.fixed-expenses-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.fixed-expenses-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.fixed-expenses-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
 }
 
 .fixed-item {
