@@ -384,16 +384,23 @@ const app = {
         }));
         this._trendPoints = pts;
         if (pts.length > 1) {
+            // Draw Gradient Fill
             ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) { const xc = (pts[i - 1].x + pts[i].x) / 2, yc = (pts[i - 1].y + pts[i].y) / 2; ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc); }
-            ctx.quadraticCurveTo(pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y);
+            for (let i = 1; i < pts.length; i++) {
+                const cpX = (pts[i - 1].x + pts[i].x) / 2;
+                ctx.bezierCurveTo(cpX, pts[i - 1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
+            }
             ctx.lineTo(pts[pts.length - 1].x, pad.top + cH); ctx.lineTo(pts[0].x, pad.top + cH); ctx.closePath();
             const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
             grad.addColorStop(0, 'rgba(99,102,241,0.25)'); grad.addColorStop(1, 'rgba(99,102,241,0.02)');
             ctx.fillStyle = grad; ctx.fill();
+
+            // Draw Line
             ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) { const xc = (pts[i - 1].x + pts[i].x) / 2, yc = (pts[i - 1].y + pts[i].y) / 2; ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc); }
-            ctx.quadraticCurveTo(pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y);
+            for (let i = 1; i < pts.length; i++) {
+                const cpX = (pts[i - 1].x + pts[i].x) / 2;
+                ctx.bezierCurveTo(cpX, pts[i - 1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
+            }
             ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2.5; ctx.stroke();
         }
         pts.forEach(p => {
