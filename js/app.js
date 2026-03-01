@@ -900,11 +900,12 @@ ${ledgerStr}
         const totalCount = this.fixedExpenses.length;
 
         this.fixedExpenses.forEach(fixed => {
-            // Very simple exact match on place, or if keyword exists in place
+            // Match on place name AND exact amount to prevent false positives
             const isPaid = thisMonthLedger.some(ledgerItem =>
-                ledgerItem.place === fixed.name ||
-                ledgerItem.place.includes(fixed.name) ||
-                (fixed.name.includes(ledgerItem.place) && ledgerItem.place.length > 1)
+                (ledgerItem.place === fixed.name ||
+                    ledgerItem.place.includes(fixed.name) ||
+                    (fixed.name.includes(ledgerItem.place) && ledgerItem.place.length > 1)) &&
+                Number(ledgerItem.amount) === Number(fixed.amount)
             );
 
             if (isPaid) paidCount++;
@@ -1439,7 +1440,7 @@ ${summaryJsonStr}
         const syncBadge = document.getElementById('sync-badge');
         syncBadge.textContent = '...';
 
-        this.showTyping();
+        this.showGlobalLoading('데이터 동기화중입니다...');
         try {
             // Group queue by YYYY-MM-DD for standard ledger data,
             // or put special global tasks like settings in a separate pool.
@@ -1482,7 +1483,17 @@ ${summaryJsonStr}
             this.syncQueue = [];
             this.saveSyncQueue();
 
-            // Reload Current Month Data
+            // Refresh local storage cache before loading
+            // Fetch fresh data immediately and update cache
+            const freshData = await this.githubApi.fetchAllData();
+            this.allLedgerData = freshData;
+            localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+
+            const freshFixed = await this.githubApi.getFixedExpenses();
+            this.fixedExpenses = freshFixed;
+            localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
+
+            // Reload Current Month Data (Now with fresh cache)
             await this.loadData();
 
             alert('동기화가 완료되었습니다! ✨');
@@ -1491,9 +1502,68 @@ ${summaryJsonStr}
             console.error(err);
             alert(`동기화 중 오류가 발생했습니다: ${err.message}`);
         } finally {
-            this.hideTyping();
+            this.hideGlobalLoading();
             this.updateSyncBadge();
         }
+    },
+
+    /**
+     * Fetch latest data from GitHub without syncing local changes
+     */
+    async fetchLatestData() {
+        if (!this.githubApi) {
+            alert('인증 정보가 없습니다. 다시 로그인 해주세요.');
+            return;
+        }
+
+        if (this.syncQueue.length > 0) {
+            if (!confirm('동기화되지 않은 내역이 있습니다. 최신 데이터를 가져오면 아직 동기화되지 않은 내역과 섞여 보일 수 있습니다. 계속할까요?')) {
+                return;
+            }
+        }
+
+        this.showGlobalLoading('최신 데이터를 불러오는 중입니다...');
+        try {
+            const freshData = await this.githubApi.fetchAllData();
+            this.allLedgerData = freshData;
+            localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+
+            const freshFixed = await this.githubApi.getFixedExpenses();
+            this.fixedExpenses = freshFixed;
+            localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
+
+            // Merge local unsynced queue back on top of fresh data
+            this.mergeQueueToLedger();
+
+            this.updateDashboard();
+            this.renderCalendar();
+            this.renderStats();
+
+            alert('최신 데이터를 성공적으로 가져왔습니다! 🔄');
+        } catch (err) {
+            console.error(err);
+            alert(`데이터를 가져오는 중 오류가 발생했습니다: ${err.message}`);
+        } finally {
+            this.hideGlobalLoading();
+        }
+    },
+
+    /**
+     * Show full screen loading overlay
+     */
+    showGlobalLoading(text = '데이터 동기화중입니다...') {
+        const loading = document.getElementById('global-loading');
+        const textEl = document.getElementById('global-loading-text');
+        if (textEl) textEl.textContent = text;
+        if (loading) loading.classList.add('show');
+    },
+
+    /**
+     * Hide full screen loading overlay
+     */
+    hideGlobalLoading() {
+        const loading = document.getElementById('global-loading');
+        if (loading) loading.classList.remove('show');
     }
 };
 
