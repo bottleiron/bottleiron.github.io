@@ -5,7 +5,7 @@
 
 const auth = {
     currentPin: "",
-    maxPinLength: 6,
+    maxPinLength: 4,
 
     /**
      * 입력을 한 자리씩 받습니다.
@@ -128,7 +128,7 @@ const auth = {
             if (importG && importH) {
                 localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
-                alert("키가 저장되었습니다. 암호화할 때 쓰신 6자리 숫자 PIN을 입력해 로그인을 완료하세요.");
+                alert("키가 저장되었습니다. 암호화할 때 쓰신 4자리 숫자 PIN을 입력해 로그인을 완료하세요.");
 
                 // 설정 화면 폼 닫고 락 스크린으로 보내기
                 document.getElementById('setup-share-url').value = '';
