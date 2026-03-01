@@ -6,12 +6,12 @@
 const auth = {
     // ---- 여기에 암호화된 토큰을 넣으세요 ----
     // `encrypt.html` 에서 생성한 값을 복사해서 붙여넣습니다.
-    ENCRYPTED_GEMINI_KEY: "U2FsdGVkX184KfQcMR3sQr07uXsTDf7L/8xucxow82dZ41soXsV8pMwuDvz/ffEAX3pcgZb0XW9EYTK55ua5aQ==",
-    ENCRYPTED_GITHUB_PAT: "U2FsdGVkX1+57q6c5G7/z9alkzK7DWRIxkVrBxTHuBz8Zcy4CuR7c4Bk22w8LgykJglvJeI1Ei76t4hxRFdEFrDxU/X+DUrZHswRpIl/EdtZGU2vCqD36DLfpJiWmjl+R3qsO3Bib6PeXLh2vVZZ4Q==",
+    ENCRYPTED_GEMINI_KEY: "U2FsdGVkX18lfQx0pUA4E8ySt+SOxMfUiJsGgDugFkG/5tH78zEEv6m59uyYrz/R37L39TBSMzbooEge1nTQ+g==",
+    ENCRYPTED_GITHUB_PAT: "U2FsdGVkX19eiCf+EHXzZTFJ/zh/Jaytuz3h0p6TNHbXNNMsBK4j1PTeoZt7s42Uv8wRMwhDeMVquvG5FURxzLMG9kKj66ay7kXMVPNtT6EMMVxD/OqgsN6oRnveLtyMe5aYuy0Lp2PkmpNFkIPKgw==",
     // ------------------------------------
 
     currentPin: "",
-    maxPinLength: 4,
+    maxPinLength: 6,
 
     /**
      * 입력을 한 자리씩 받습니다.

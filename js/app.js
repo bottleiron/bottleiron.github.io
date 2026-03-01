@@ -724,6 +724,8 @@ const app = {
                 await this.processEditExpense(text);
             } else if (intentResp.intent === "INQUIRY_SUMMARY") {
                 await this.processInquirySummary(text, intentResp.data);
+            } else if (intentResp.intent === "ANALYSIS") {
+                await this.processAnalysis(text, intentResp.data);
             } else {
                 await this.processInquiry(text, intentResp.data);
             }
@@ -777,6 +779,10 @@ const app = {
 사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
 {"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
+7. 지출 분석 및 개선 조언 (intent: "ANALYSIS")
+사용자가 "내 지출 분석해줘", "어떻게 하면 돈을 아낄까?", "이번 달 지출 패턴 어때?" 등 통계를 넘어선 분석 및 조언을 구하는 경우.
+{"intent": "ANALYSIS", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
+
 사용자 입력: "${userText}"
 `;
         return await this.fetchGemini(prompt);
@@ -789,7 +795,10 @@ const app = {
         const prompt = `
 당신은 가계부 상담 AI입니다.
 아래의 전체 가계부 내역(JSON 리스트)을 바탕으로 사용자의 질문에 친절하고 정확하게 답변해주세요.
-답변은 카카오톡 메시지처럼 자연스럽게, 그리고 표를 활용해서 깔끔하게 요약해주는 것이 좋습니다 (HTML 형식의 <table>, <tr>, <td> 사용 권장, 단 별도의 head나 body 태그 없이).
+응답은 일반 텍스트 대신 깔끔하고 세련된 HTML 템플릿 구조를 활용해 주세요.
+* 중요: <html>, <body> 태그는 제외하고 내부 HTML만 작성.
+* 중요표시: 핵심 금액이나 단어는 <b style="color:var(--primary);">강조</b>처리.
+* 리스트/표: 반복되는 내역은 가독성 좋은 <ul><li> 혹은 <table>을 사용하세요 (인라인 CSS 사용 가능, border-collapse, padding 등).
 
 가계부 내역:
 ${ledgerStr}
@@ -1396,13 +1405,62 @@ ${JSON.stringify(this.allLedgerData.slice(0, 50))}
         const prompt = `
 당신은 가계부 상담 AI입니다.
 사용자가 통계/합산 정보를 요구하여 시스템 내에서 자체적으로 금액을 합산(Reduce)한 결과표를 드립니다.
-아래의 요약된 시스템 자체 계산 결과를 바탕으로 사용자에게 자연스럽고 친절하게(보고서 또는 대화 형태) 안내해 주세요.
+아래의 요약된 시스템 자체 계산 결과를 바탕으로 사용자에게 자연스럽고 친절하게 안내해 주세요.
+결과는 가독성이 높은 HTML 요소를 활용하세요 (표, 리스트, 강조 색상 등).
+* 핵심 정보 강조 (예: <span style="font-size:16px; font-weight:bold; color:var(--accent);">금액</span>)
 
 시스템 합산 요약 결과:
 ${summaryJsonStr}
 
 사용자 질문: "${userText}"
         `;
+        const aiAnswerHtml = await this.fetchGemini(prompt);
+        this.appendMessage(aiAnswerHtml, 'bot', true);
+    },
+
+    /**
+     * Process deep analysis & feedback (SMART RAG for advice)
+     */
+    async processAnalysis(userText, filterData = null) {
+        let targetData = this.allLedgerData;
+
+        if (filterData) {
+            targetData = targetData.filter(item => {
+                let match = true;
+                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
+                if (filterData.category && item.category !== filterData.category) match = false;
+                return match;
+            });
+        }
+
+        if (targetData.length === 0) {
+            this.appendMessage('분석할 지출 내역이 부족합니다.', 'bot');
+            return;
+        }
+
+        // Limit data to prevent token explosion
+        if (targetData.length > 500) {
+            targetData = targetData.slice(0, 500);
+            this.appendMessage('⚠️ 분석 대상 데이터가 많아 최근 500건을 기준으로 분석합니다.', 'bot', true);
+        }
+
+        const ledgerCsvStr = this.convertToCSV(targetData);
+
+        const prompt = `
+당신은 똑똑하고 냉철한(하지만 친절한) 재무 상담사 AI입니다.
+아래 가계부 내역 데이터를 분석하여, 사용자의 지출 패턴, 과소비 여부, 그리고 개선 방향(절약 팁)을 브리핑해 주세요.
+응답 형식은 깔끔한 HTML이어야 하며, <html> <body> 태그는 제외하세요.
+* 요약 섹션 추가
+* 눈에 띄게 큰 금액(카테고리) 강조
+* 구체적인 액션 아이템(개선 방안) 제시
+* 이모지 적극 활용
+* 숫자는 보기 쉽게 천 단위 콤마 표기 (예: 1,000,000)
+
+가계부 내역:
+${ledgerCsvStr}
+
+사용자 요청: "${userText}"
+`;
         const aiAnswerHtml = await this.fetchGemini(prompt);
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
