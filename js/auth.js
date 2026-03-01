@@ -4,12 +4,6 @@
  */
 
 const auth = {
-    // ---- 여기에 암호화된 토큰을 넣으세요 ----
-    // `encrypt.html` 에서 생성한 값을 복사해서 붙여넣습니다.
-    ENCRYPTED_GEMINI_KEY: "U2FsdGVkX18lfQx0pUA4E8ySt+SOxMfUiJsGgDugFkG/5tH78zEEv6m59uyYrz/R37L39TBSMzbooEge1nTQ+g==",
-    ENCRYPTED_GITHUB_PAT: "U2FsdGVkX19eiCf+EHXzZTFJ/zh/Jaytuz3h0p6TNHbXNNMsBK4j1PTeoZt7s42Uv8wRMwhDeMVquvG5FURxzLMG9kKj66ay7kXMVPNtT6EMMVxD/OqgsN6oRnveLtyMe5aYuy0Lp2PkmpNFkIPKgw==",
-    // ------------------------------------
-
     currentPin: "",
     maxPinLength: 6,
 
@@ -74,18 +68,61 @@ const auth = {
     },
 
     /**
+     * Initial Key Setup
+     */
+    setupKeys() {
+        const gemini = document.getElementById('setup-gemini-key').value.trim();
+        const github = document.getElementById('setup-github-pat').value.trim();
+        const pin = document.getElementById('setup-pin').value.trim();
+        const errorEl = document.getElementById('setup-error');
+
+        if (!gemini || !github || !pin) {
+            errorEl.textContent = '모든 항목을 입력해주세요.';
+            return;
+        }
+
+        if (pin.length !== this.maxPinLength || isNaN(pin)) {
+            errorEl.textContent = `PIN은 숫자 ${this.maxPinLength}자리여야 합니다.`;
+            return;
+        }
+
+        errorEl.textContent = '';
+
+        try {
+            // Encrypt and save to localStorage
+            const encGemini = CryptoJS.AES.encrypt(gemini, pin).toString();
+            const encGithub = CryptoJS.AES.encrypt(github, pin).toString();
+
+            localStorage.setItem('encryptedGemini', encGemini);
+            localStorage.setItem('encryptedGithub', encGithub);
+
+            // Save decrypted to sessionStorage for immediate use
+            sessionStorage.setItem('geminiKey', gemini);
+            sessionStorage.setItem('githubPat', github);
+
+            this.switchScreen('user-select-screen');
+        } catch (e) {
+            console.error(e);
+            errorEl.textContent = '키 저장 중 오류가 발생했습니다.';
+        }
+    },
+
+    /**
      * 복호화 시도 및 로그인 처리
      */
     attemptLogin() {
-        if (this.ENCRYPTED_GEMINI_KEY === "여기에_암호화된_제미나이키_붙여넣기") {
-            this.showError("auth.js에 암호화된 키를 먼저 설정해주세요.");
+        const encGemini = localStorage.getItem('encryptedGemini');
+        const encGithub = localStorage.getItem('encryptedGithub');
+
+        if (!encGemini || !encGithub) {
+            this.showError("등록된 API 키가 없습니다. 앱 데이터 초기화 후 다시 설정하세요.");
             return;
         }
 
         try {
             // 복호화 시도
-            const decryptedGemini = CryptoJS.AES.decrypt(this.ENCRYPTED_GEMINI_KEY, this.currentPin).toString(CryptoJS.enc.Utf8);
-            const decryptedGithub = CryptoJS.AES.decrypt(this.ENCRYPTED_GITHUB_PAT, this.currentPin).toString(CryptoJS.enc.Utf8);
+            const decryptedGemini = CryptoJS.AES.decrypt(encGemini, this.currentPin).toString(CryptoJS.enc.Utf8);
+            const decryptedGithub = CryptoJS.AES.decrypt(encGithub, this.currentPin).toString(CryptoJS.enc.Utf8);
 
             if (!decryptedGemini || !decryptedGithub) {
                 throw new Error("Invalid PIN");
@@ -111,6 +148,16 @@ const auth = {
         this.switchScreen('lock-screen');
     },
 
+    resetApp() {
+        if (confirm("저장된 API 키와 PIN 설정이 모두 삭제됩니다. 계속하시겠습니까?")) {
+            localStorage.removeItem('encryptedGemini');
+            localStorage.removeItem('encryptedGithub');
+            sessionStorage.clear();
+            this.clearParams();
+            this.switchScreen('setup-screen');
+        }
+    },
+
     selectUser(userName) {
         sessionStorage.setItem("currentUser", userName);
         this.switchScreen('chat-screen');
@@ -126,6 +173,15 @@ const auth = {
 
     // 초기 실행 시 이미 세션이 있으면 통과
     checkSession() {
+        const encGemini = localStorage.getItem('encryptedGemini');
+        const encGithub = localStorage.getItem('encryptedGithub');
+
+        if (!encGemini || !encGithub) {
+            // No keys setup yet
+            this.switchScreen('setup-screen');
+            return;
+        }
+
         if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat")) {
             if (sessionStorage.getItem("currentUser")) {
                 this.switchScreen('chat-screen');
@@ -135,6 +191,9 @@ const auth = {
             } else {
                 this.switchScreen('user-select-screen');
             }
+        } else {
+            // Need PIN to decrypt
+            this.switchScreen('lock-screen');
         }
     }
 };

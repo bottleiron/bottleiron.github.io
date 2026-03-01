@@ -30,8 +30,46 @@
 </head>
 
 <body>
+    <!-- Setup Screen (Initial Run) -->
+    <div id="setup-screen" class="screen">
+        <div class="lock-container" style="max-width:350px;">
+            <h1 class="title">초기 설정</h1>
+            <p class="subtitle">API 키와 암호화 비밀번호를 등록하세요</p>
+
+            <div class="setup-form"
+                style="width:100%; display:flex; flex-direction:column; gap:16px; margin-bottom: 30px;">
+                <div>
+                    <label
+                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">Gemini
+                        API Key</label>
+                    <input type="password" id="setup-gemini-key" placeholder="AI Studio 발급 키"
+                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
+                </div>
+                <div>
+                    <label
+                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">GitHub
+                        PAT</label>
+                    <input type="password" id="setup-github-pat" placeholder="GitHub Tokens (classic)"
+                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
+                </div>
+                <div>
+                    <label
+                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">앱
+                        잠금/암호화 PIN (6자리 숫자)</label>
+                    <input type="password" id="setup-pin" placeholder="숫자 6자리 입력" maxlength="6" inputmode="numeric"
+                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none; text-align:center; letter-spacing:4px;">
+                </div>
+            </div>
+
+            <button onclick="auth.setupKeys()"
+                style="width:100%; padding:14px; border-radius:16px; border:none; background:var(--primary-gradient); color:white; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(99,102,241,0.3);">저장
+                및 시작하기</button>
+            <p id="setup-error" class="error-msg" style="margin-top:10px; color:var(--accent); font-size:13px;"></p>
+        </div>
+    </div>
+
     <!-- Lock Screen -->
-    <div id="lock-screen" class="screen active">
+    <div id="lock-screen" class="screen">
         <div class="lock-container">
             <h1 class="title">비밀번호 입력</h1>
             <p class="subtitle">시유 병철만 사용 가능해요</p>
@@ -58,6 +96,8 @@
                 <button class="key action-key" onclick="auth.deleteNum()">⌫</button>
             </div>
             <p id="auth-error" class="error-msg"></p>
+            <button class="logout-text-btn" style="margin-top:20px; font-size:12px;" onclick="auth.resetApp()">앱 초기화 (키
+                재설정)</button>
         </div>
     </div>
 
