@@ -107,12 +107,18 @@ const app = {
     },
 
     async loadData() {
-        this.showTyping();
+        const cachedLedger = localStorage.getItem(`cachedAllData_${this.currentUser}`);
+        const cachedFixed = localStorage.getItem(`cachedFixed_${this.currentUser}`);
+
+        // 만약 캐시가 하나도 없다면(=처음 로그인하는 기기라면) 전체 화면 로딩 띄우기
+        if (!cachedLedger || !cachedFixed) {
+            this.showGlobalLoading('초기 가계부 데이터를 불러오고 있습니다...');
+        } else {
+            this.showTyping(); // 기존처럼 채팅방 타이핑 인디케이터만
+        }
+
         try {
             // 1. Try to load from LocalStorage cache first for instant UX
-            const cachedLedger = localStorage.getItem(`cachedAllData_${this.currentUser}`);
-            const cachedFixed = localStorage.getItem(`cachedFixed_${this.currentUser}`);
-
             if (cachedLedger) {
                 this.allLedgerData = JSON.parse(cachedLedger);
             }
@@ -150,6 +156,7 @@ const app = {
             this.renderStats();
         } finally {
             this.hideTyping();
+            this.hideGlobalLoading(); // 로딩창이 켜져있었다면 끄기
         }
     },
 
