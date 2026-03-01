@@ -166,6 +166,26 @@ const auth = {
         }
     },
 
+    copyShareUrl() {
+        const encG = localStorage.getItem('encryptedGemini');
+        const encH = localStorage.getItem('encryptedGithub');
+        if (!encG || !encH) {
+            alert("저장된 키가 없습니다. 먼저 초기 설정을 완료해주세요.");
+            return;
+        }
+
+        // Construct URL
+        const shareUrl = `${window.location.origin}${window.location.pathname}?g=${encodeURIComponent(encG)}&h=${encodeURIComponent(encH)}`;
+
+        // Copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert("기기 연결 링크가 복사되었습니다!\n\n카카오톡 '나에게 보내기' 등에 붙여넣기 하신 뒤,\n새로운 기기에서 해당 링크를 클릭하시면 즉시 설정이 연동됩니다.");
+        }).catch(err => {
+            console.error("복사 실패", err);
+            prompt("아래 링크를 복사하여 다른 기기로 전송하세요:", shareUrl);
+        });
+    },
+
     switchScreen(screenId) {
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
@@ -173,6 +193,19 @@ const auth = {
 
     // 초기 실행 시 이미 세션이 있으면 통과
     checkSession() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const importG = urlParams.get('g');
+        const importH = urlParams.get('h');
+
+        if (importG && importH) {
+            if (confirm("공유받은 API 키 설정을 이 기기에 적용할까요?")) {
+                localStorage.setItem('encryptedGemini', importG);
+                localStorage.setItem('encryptedGithub', importH);
+                alert("키가 임시 저장되었습니다. 암호화할 때 사용한 6자리 PIN을 입력하여 로그인을 완료해주세요.\n(주의: 완료 후 주소창의 긴 URL은 지워주세요!)");
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+
         const encGemini = localStorage.getItem('encryptedGemini');
         const encGithub = localStorage.getItem('encryptedGithub');
 
