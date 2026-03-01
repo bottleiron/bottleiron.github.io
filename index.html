@@ -61,6 +61,19 @@
                 </div>
             </div>
 
+            <hr style="background:var(--border-color); height:1px; border:none; margin-bottom:20px;">
+            <div style="margin-bottom: 24px;">
+                <label
+                    style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">공유받은
+                    기기 연결 링크 붙여넣기 (PWA 환경용)</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="setup-share-url" placeholder="복사한 URL을 여기에 붙여넣으세요"
+                        style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
+                    <button onclick="auth.importShareUrl()"
+                        style="padding:0 16px; border-radius:12px; border:none; background:#e0e7ff; color:var(--primary); font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap;">적용</button>
+                </div>
+            </div>
+
             <button onclick="auth.setupKeys()"
                 style="width:100%; padding:14px; border-radius:16px; border:none; background:var(--primary-gradient); color:white; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(99,102,241,0.3);">저장
                 및 시작하기</button>

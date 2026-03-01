@@ -108,6 +108,40 @@ const auth = {
     },
 
     /**
+     * PWA 환경에서 붙여넣은 공유 URL 파싱
+     */
+    importShareUrl() {
+        const urlInput = document.getElementById('setup-share-url').value.trim();
+        const errorEl = document.getElementById('setup-error');
+
+        if (!urlInput) {
+            errorEl.textContent = '공유 링크를 먼저 붙여넣어주세요.';
+            return;
+        }
+
+        try {
+            // URL 문자열인지 확인 후 파싱
+            const url = new URL(urlInput);
+            const importG = url.searchParams.get('g');
+            const importH = url.searchParams.get('h');
+
+            if (importG && importH) {
+                localStorage.setItem('encryptedGemini', importG);
+                localStorage.setItem('encryptedGithub', importH);
+                alert("키가 저장되었습니다. 암호화할 때 쓰신 6자리 숫자 PIN을 입력해 로그인을 완료하세요.");
+
+                // 설정 화면 폼 닫고 락 스크린으로 보내기
+                document.getElementById('setup-share-url').value = '';
+                this.switchScreen('lock-screen');
+            } else {
+                errorEl.textContent = '올바른 공유 링크 형식이 아닙니다 (키 누락).';
+            }
+        } catch (e) {
+            errorEl.textContent = '유효한 웹 주소(URL) 형식이 아닙니다.';
+        }
+    },
+
+    /**
      * 복호화 시도 및 로그인 처리
      */
     attemptLogin() {
