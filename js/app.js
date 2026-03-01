@@ -12,6 +12,44 @@ const GITHUB_OWNER = 'bottleiron';
 const GITHUB_REPO = 'my-ledger-data';
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
+const idb = {
+    DB_NAME: 'LedgerDB',
+    DB_VERSION: 1,
+    STORE_NAME: 'cache',
+
+    async getDb() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+            request.onupgradeneeded = event => {
+                event.target.result.createObjectStore(this.STORE_NAME);
+            };
+        });
+    },
+    async get(key) {
+        const db = await this.getDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(this.STORE_NAME, 'readonly');
+            const store = tx.objectStore(this.STORE_NAME);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+    async set(key, value) {
+        if (!value) return; // Prevent saving undefined
+        const db = await this.getDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(this.STORE_NAME, 'readwrite');
+            const store = tx.objectStore(this.STORE_NAME);
+            const request = store.put(value, key);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+};
+
 const app = {
     geminiKey: "",
     githubPat: "",
@@ -107,8 +145,15 @@ const app = {
     },
 
     async loadData() {
-        const cachedLedger = localStorage.getItem(`cachedAllData_${this.currentUser}`);
-        const cachedFixed = localStorage.getItem(`cachedFixed_${this.currentUser}`);
+        let cachedLedger = null;
+        let cachedFixed = null;
+
+        try {
+            cachedLedger = await idb.get(`cachedAllData_${this.currentUser}`);
+            cachedFixed = await idb.get(`cachedFixed_${this.currentUser}`);
+        } catch (e) {
+            console.warn("IndexedDB ü ", e);
+        }
 
         // 만약 캐시가 하나도 없다면(=처음 로그인하는 기기라면) 전체 화면 로딩 띄우기
         if (!cachedLedger || !cachedFixed) {
@@ -118,12 +163,12 @@ const app = {
         }
 
         try {
-            // 1. Try to load from LocalStorage cache first for instant UX
+            // 1. Try to load from IndexedDB cache first for instant UX
             if (cachedLedger) {
-                this.allLedgerData = JSON.parse(cachedLedger);
+                this.allLedgerData = cachedLedger;
             }
             if (cachedFixed) {
-                this.fixedExpenses = JSON.parse(cachedFixed);
+                this.fixedExpenses = cachedFixed;
             }
 
             this.mergeQueueToLedger();
@@ -133,14 +178,13 @@ const app = {
 
             // 2. Fetch all data from GitHub in JS background
             if (this.githubApi) {
-                // To avoid Rate Limit, we might only fetch if it's been a while
                 const freshData = await this.githubApi.fetchAllData();
                 this.allLedgerData = freshData;
-                localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+                await idb.set(`cachedAllData_${this.currentUser}`, freshData);
 
                 const freshFixed = await this.githubApi.getFixedExpenses();
                 this.fixedExpenses = freshFixed;
-                localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
+                await idb.set(`cachedFixed_${this.currentUser}`, freshFixed);
 
                 this.mergeQueueToLedger();
                 this.updateDashboard();
@@ -891,7 +935,7 @@ ${ledgerStr}
         this.saveSyncQueue();
 
         // Update cache
-        localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(this.fixedExpenses));
+        await idb.set(`cachedFixed_${this.currentUser}`, this.fixedExpenses);
 
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth() + 1;
@@ -1559,11 +1603,11 @@ ${ledgerCsvStr}
             // Fetch fresh data immediately and update cache
             const freshData = await this.githubApi.fetchAllData();
             this.allLedgerData = freshData;
-            localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+            await idb.set(`cachedAllData_${this.currentUser}`, freshData);
 
             const freshFixed = await this.githubApi.getFixedExpenses();
             this.fixedExpenses = freshFixed;
-            localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
+            await idb.set(`cachedFixed_${this.currentUser}`, freshFixed);
 
             // Reload Current Month Data (Now with fresh cache)
             await this.loadData();
@@ -1598,11 +1642,11 @@ ${ledgerCsvStr}
         try {
             const freshData = await this.githubApi.fetchAllData();
             this.allLedgerData = freshData;
-            localStorage.setItem(`cachedAllData_${this.currentUser}`, JSON.stringify(freshData));
+            await idb.set(`cachedAllData_${this.currentUser}`, freshData);
 
             const freshFixed = await this.githubApi.getFixedExpenses();
             this.fixedExpenses = freshFixed;
-            localStorage.setItem(`cachedFixed_${this.currentUser}`, JSON.stringify(freshFixed));
+            await idb.set(`cachedFixed_${this.currentUser}`, freshFixed);
 
             // Merge local unsynced queue back on top of fresh data
             this.mergeQueueToLedger();
