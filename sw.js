@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v6';
+const CACHE_NAME = 'sugar-gebu-v7';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
@@ -12,7 +12,11 @@ const URLS_TO_CACHE = [
     '/js/api/gemini.js',
     '/js/core/store.js',
     '/js/ui/renderer.js',
-    '/manifest.json'
+    '/manifest.json',
+    '/assets/fontawesome/css/all.min.css',
+    '/assets/fontawesome/webfonts/fa-solid-900.woff2',
+    '/assets/fontawesome/webfonts/fa-regular-400.woff2',
+    '/assets/fontawesome/webfonts/fa-brands-400.woff2'
 ];
 
 self.addEventListener('install', event => {
