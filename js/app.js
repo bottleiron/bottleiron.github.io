@@ -1016,14 +1016,25 @@ const app = {
     },
 
     payFixedExpense(fixedId, year, month) {
-        if (!confirm('이 고정 지출을 납부한 것으로 처리할까요?')) return;
-
         const fixedItem = this.fixedExpenses.find(x => x.id === fixedId);
         if (!fixedItem) return;
 
+        let targetDayStr = String(fixedItem.pay_day).padStart(2, '0');
+
+        if (!confirm(`이번 달 ${fixedItem.name}을(를) ${fixedItem.pay_day}일에 결제하신 게 맞나요?`)) {
+            const inputDay = prompt("결제하신 날짜(일)를 숫자로 입력해주세요.");
+            if (!inputDay) return; // Use cancelled prompt or gave empty string
+
+            const parsedDay = parseInt(inputDay, 10);
+            if (isNaN(parsedDay) || parsedDay < 1 || parsedDay > 31) {
+                alert("올바른 일자(숫자)를 입력해주세요.");
+                return;
+            }
+            targetDayStr = String(parsedDay).padStart(2, '0');
+        }
+
         const mm = String(month).padStart(2, '0');
-        const dd = String(fixedItem.pay_day).padStart(2, '0');
-        const formattedDate = `${year}-${mm}-${dd}`;
+        const formattedDate = `${year}-${mm}-${targetDayStr}`;
 
         const newExpense = {
             id: uuidv4(),

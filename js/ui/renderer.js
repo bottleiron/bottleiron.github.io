@@ -51,11 +51,16 @@ export const uiRenderer = {
                 anniversaryHtml = `<div class="cal-anniversary">${icons}</div>`;
             }
 
+            const currentDow = new Date(year, month - 1, day).getDay();
+            let weekendClass = '';
+            if (currentDow === 0) weekendClass = 'text-sunday';
+            else if (currentDow === 6) weekendClass = 'text-saturday';
+
             const dayDiv = document.createElement('div');
             dayDiv.className = `cal-day ${isTodayClass}`;
             dayDiv.style.position = 'relative';
             dayDiv.innerHTML = `
-                <div class="cal-date">${day}</div>
+                <div class="cal-date ${weekendClass}">${day}</div>
                 ${anniversaryHtml}
                 ${amountHtml}
             `;
