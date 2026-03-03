@@ -1129,6 +1129,14 @@ body {
     background: #fee2e2;
 }
 
+.text-saturday {
+    color: #3b82f6 !important;
+}
+
+.text-sunday {
+    color: #ef4444 !important;
+}
+
 .edit-btn {
     background: none;
     border: none;
