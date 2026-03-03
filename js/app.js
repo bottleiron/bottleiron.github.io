@@ -43,7 +43,6 @@ const app = {
         this.cacheDOM();
 
         // 1. Initial State UI setups
-        this.renderFixedExpensesConfig();
         if (!this.elements.chatInput || !this.elements.chatContainer) {
             console.log("Elements not found, retrying init...");
             setTimeout(() => this.init(), 50);
