@@ -34,8 +34,20 @@ const app = {
     elements: {},
 
     init() {
+        this.geminiKey = sessionStorage.getItem('geminiKey');
+        this.githubPat = sessionStorage.getItem('githubPat');
+        this.currentUser = sessionStorage.getItem('currentUser') || '사용자';
+
         if (this.geminiKey) {
-            geminiApi.init(this.geminiKey);
+            try {
+                geminiApi.init(this.geminiKey);
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        if (this.githubPat && !this.githubApi) {
+            this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
         }
 
         console.log("app.init() called, user:", this.currentUser);
