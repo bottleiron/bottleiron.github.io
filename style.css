@@ -1251,3 +1251,124 @@ body {
     font-weight: 600;
     color: var(--text-primary);
 }
+
+/* --- Common Utility Classes & Form Elements --- */
+.flex-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.flex-row {
+    display: flex;
+    flex-direction: row;
+}
+
+.gap-16 {
+    gap: 16px;
+}
+
+.gap-8 {
+    gap: 8px;
+}
+
+.mb-30 {
+    margin-bottom: 30px;
+}
+
+.mb-24 {
+    margin-bottom: 24px;
+}
+
+.mb-20 {
+    margin-bottom: 20px;
+}
+
+.mb-4 {
+    margin-bottom: 4px;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.form-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+    outline: none;
+    background: white;
+}
+
+.form-input.pin-input {
+    text-align: center;
+    letter-spacing: 4px;
+}
+
+.btn-primary {
+    padding: 14px;
+    border-radius: 16px;
+    border: none;
+    background: var(--primary-gradient);
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.btn-secondary {
+    padding: 0 16px;
+    border-radius: 12px;
+    border: none;
+    background: #e0e7ff;
+    color: var(--primary);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.divider {
+    background: var(--border-color);
+    height: 1px;
+    border: none;
+    margin-bottom: 20px;
+}
+
+.header-action-btn {
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sync-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    backdrop-filter: blur(8px);
+}
+
+.sync-badge {
+    background-color: var(--accent);
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 9px;
+    margin-left: 4px;
+    display: none;
+}

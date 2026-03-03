@@ -36,47 +36,33 @@
             <h1 class="title">초기 설정</h1>
             <p class="subtitle">API 키와 암호화 비밀번호를 등록하세요</p>
 
-            <div class="setup-form"
-                style="width:100%; display:flex; flex-direction:column; gap:16px; margin-bottom: 30px;">
+            <div class="setup-form flex-col w-100 gap-16 mb-30">
                 <div>
-                    <label
-                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">Gemini
-                        API Key</label>
-                    <input type="password" id="setup-gemini-key" placeholder="AI Studio 발급 키"
-                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
+                    <label class="form-label">Gemini API Key</label>
+                    <input type="password" class="form-input" id="setup-gemini-key" placeholder="AI Studio 발급 키">
                 </div>
                 <div>
-                    <label
-                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">GitHub
-                        PAT</label>
-                    <input type="password" id="setup-github-pat" placeholder="GitHub Tokens (classic)"
-                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
+                    <label class="form-label">GitHub PAT</label>
+                    <input type="password" class="form-input" id="setup-github-pat"
+                        placeholder="GitHub Tokens (classic)">
                 </div>
                 <div>
-                    <label
-                        style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">앱
-                        잠금/암호화 PIN (4자리 숫자)</label>
-                    <input type="password" id="setup-pin" placeholder="숫자 4자리 입력" maxlength="4" inputmode="numeric"
-                        style="width:100%; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none; text-align:center; letter-spacing:4px;">
+                    <label class="form-label">앱 잠금/암호화 PIN (4자리 숫자)</label>
+                    <input type="password" class="form-input pin-input" id="setup-pin" placeholder="숫자 4자리 입력"
+                        maxlength="4" inputmode="numeric">
                 </div>
             </div>
 
-            <hr style="background:var(--border-color); height:1px; border:none; margin-bottom:20px;">
-            <div style="margin-bottom: 24px;">
-                <label
-                    style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:block;">공유받은
-                    기기 연결 링크 붙여넣기 (PWA 환경용)</label>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="setup-share-url" placeholder="복사한 URL을 여기에 붙여넣으세요"
-                        style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--border-color); font-size:14px; outline:none;">
-                    <button onclick="auth.importShareUrl()"
-                        style="padding:0 16px; border-radius:12px; border:none; background:#e0e7ff; color:var(--primary); font-weight:700; cursor:pointer; font-size:13px; white-space:nowrap;">적용</button>
+            <hr class="divider">
+            <div class="mb-24">
+                <label class="form-label">공유받은 기기 연결 링크 붙여넣기 (PWA 환경용)</label>
+                <div class="flex-row gap-8">
+                    <input type="text" class="form-input flex-1" id="setup-share-url" placeholder="복사한 URL을 여기에 붙여넣으세요">
+                    <button class="btn-secondary" onclick="auth.importShareUrl()">적용</button>
                 </div>
             </div>
 
-            <button onclick="auth.setupKeys()"
-                style="width:100%; padding:14px; border-radius:16px; border:none; background:var(--primary-gradient); color:white; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(99,102,241,0.3);">저장
-                및 시작하기</button>
+            <button class="btn-primary w-100" onclick="auth.setupKeys()">저장 및 시작하기</button>
             <p id="setup-error" class="error-msg" style="margin-top:10px; color:var(--accent); font-size:13px;"></p>
         </div>
     </div>
@@ -141,15 +127,13 @@
                 <div class="header-content">
                     <div class="header-top">
                         <span class="month-label">2026년 2월</span>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="sync-btn" onclick="app.syncData()" id="sync-btn"
-                                style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); padding: 6px 14px; border-radius: 12px; font-size: 11px; font-weight: 600; color: white; cursor: pointer; backdrop-filter: blur(8px);">
-                                동기화 <span id="sync-badge"
-                                    style="background-color: var(--accent); border-radius: 50%; padding: 2px 6px; font-size: 9px; margin-left: 4px; display: none;">0</span>
+                        <div class="flex-row gap-8">
+                            <button class="sync-btn header-action-btn" onclick="app.syncData()" id="sync-btn">
+                                동기화 <span id="sync-badge" class="sync-badge">0</span>
                             </button>
-                            <button class="logout-btn" onclick="app.fetchLatestData()"
-                                style="padding: 6px 14px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer;">최신
-                                가져오기</button>
+                            <button class="header-action-btn"
+                                style="background: white; border: 1px solid var(--border-color); color: var(--text-primary);"
+                                onclick="app.fetchLatestData()">최신 가져오기</button>
                         </div>
                     </div>
                     <h1 class="total-amount"></h1>
@@ -275,20 +259,6 @@
                                 <div class="form-row">
                                     <input type="number" id="add-amount" placeholder="금액 (원)" />
                                     <select id="add-category">
-                                        <option value="식비">식비</option>
-                                        <option value="교통비">교통비</option>
-                                        <option value="이자">이자</option>
-                                        <option value="관리비">관리비</option>
-                                        <option value="통신비">통신비</option>
-                                        <option value="공과금">공과금</option>
-                                        <option value="보험">보험</option>
-                                        <option value="문화생활">문화생활</option>
-                                        <option value="모임">모임</option>
-                                        <option value="쇼핑">쇼핑</option>
-                                        <option value="그리시유">그리시유</option>
-                                        <option value="경조사비">경조사비</option>
-                                        <option value="저축">저축</option>
-                                        <option value="기타">기타</option>
                                     </select>
                                 </div>
                                 <button class="add-btn" onclick="app.addExpenseFromModal()">추가하기</button>
@@ -325,20 +295,6 @@
                                         style="width: 55%;" />
                                 </div>
                                 <select id="add-fixed-category">
-                                    <option value="식비">식비</option>
-                                    <option value="교통비">교통비</option>
-                                    <option value="이자">이자</option>
-                                    <option value="관리비">관리비</option>
-                                    <option value="통신비">통신비</option>
-                                    <option value="공과금">공과금</option>
-                                    <option value="보험">보험</option>
-                                    <option value="문화생활">문화생활</option>
-                                    <option value="모임">모임</option>
-                                    <option value="쇼핑">쇼핑</option>
-                                    <option value="그리시유">그리시유</option>
-                                    <option value="경조사비">경조사비</option>
-                                    <option value="저축">저축</option>
-                                    <option value="기타" selected>기타</option>
                                 </select>
                                 <button class="add-btn" onclick="app.addFixedExpenseFromUI()" style="margin-top:12px;">+
                                     고정비 등록</button>

@@ -7,48 +7,15 @@
 import { v4 as uuidv4 } from "uuid";
 import { GithubApi } from "./github-api.js";
 import { Solar, Lunar } from "lunar-javascript";
+import { CATEGORIES, ANNIVERSARIES } from "./constants.js";
+import { idb } from "./core/store.js";
+import { geminiApi } from "./api/gemini.js";
+import { uiRenderer } from "./ui/renderer.js";
 
 const GITHUB_OWNER = 'bottleiron';
 const GITHUB_REPO = 'my-ledger-data';
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
-const idb = {
-    DB_NAME: 'LedgerDB',
-    DB_VERSION: 1,
-    STORE_NAME: 'cache',
 
-    async getDb() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result);
-            request.onupgradeneeded = event => {
-                event.target.result.createObjectStore(this.STORE_NAME);
-            };
-        });
-    },
-    async get(key) {
-        const db = await this.getDb();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(this.STORE_NAME, 'readonly');
-            const store = tx.objectStore(this.STORE_NAME);
-            const request = store.get(key);
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
-    },
-    async set(key, value) {
-        if (!value) return; // Prevent saving undefined
-        const db = await this.getDb();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(this.STORE_NAME, 'readwrite');
-            const store = tx.objectStore(this.STORE_NAME);
-            const request = store.put(value, key);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    }
-};
 
 const app = {
     geminiKey: "",
@@ -64,20 +31,20 @@ const app = {
     selectedDate: null, // For modal
     currentUser: "사용자",
 
-    init() {
-        this.geminiKey = sessionStorage.getItem("geminiKey");
-        this.githubPat = sessionStorage.getItem("githubPat");
-        this.currentUser = sessionStorage.getItem("currentUser") || "사용자";
+    elements: {},
 
-        if (this.githubPat) {
-            this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
+    init() {
+        if (this.geminiKey) {
+            geminiApi.init(this.geminiKey);
         }
 
         console.log("app.init() called, user:", this.currentUser);
-        this.chatWindow = document.getElementById('chat-window');
-        this.userInput = document.getElementById('user-input');
 
-        if (!this.userInput || !this.chatWindow) {
+        this.cacheDOM();
+
+        // 1. Initial State UI setups
+        this.renderFixedExpensesConfig();
+        if (!this.elements.chatInput || !this.elements.chatContainer) {
             console.log("Elements not found, retrying init...");
             setTimeout(() => this.init(), 50);
             return;
@@ -87,17 +54,17 @@ const app = {
         // Check if event listener was already added to prevent duplicates on multiple inits
         if (!this._isInitialized) {
             // Setup Enter key to send message
-            this.userInput.addEventListener('keypress', (e) => {
+            this.elements.chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    this.sendMessage();
+                    this.handleSend();
                 }
             });
 
-            // Initialize typing indicator
-            this.typingIndicator = document.createElement('div');
-            this.typingIndicator.id = 'typing-indicator';
-            this.typingIndicator.innerHTML = '<div class="dot-flashing"></div>';
-            this.chatWindow.appendChild(this.typingIndicator);
+            // Initialize typing indicator (it should be in HTML, just manage its visibility)
+            // this.typingIndicator = document.createElement('div');
+            // this.typingIndicator.id = 'typing-indicator';
+            // this.typingIndicator.innerHTML = '<div class="dot-flashing"></div>';
+            // this.chatWindow.appendChild(this.typingIndicator);
 
             // Setup Tab Switching
             document.querySelectorAll('.tab-item').forEach(tab => {
@@ -107,10 +74,29 @@ const app = {
                 });
             });
 
+            // Populate category select options dynamically from constants
+            const catOptionsHTML = CATEGORIES.map(c => `<option value="${c}" ${c === '기타' ? 'selected' : ''}>${c}</option>`).join('');
+            const addCatSelect = document.getElementById('add-category');
+            if (addCatSelect) addCatSelect.innerHTML = catOptionsHTML;
+            const fixCatSelect = document.getElementById('add-fixed-category');
+            if (fixCatSelect) fixCatSelect.innerHTML = catOptionsHTML;
+
             this._isInitialized = true;
             this.loadSyncQueue();
-            this.loadData();
+            this.fetchLatestData();
         }
+    },
+
+    cacheDOM() {
+        this.elements = {
+            chatContainer: document.getElementById('chat-window'),
+            chatInput: document.getElementById('user-input'),
+            syncBadge: document.getElementById('sync-badge'),
+            globalLoading: document.getElementById('global-loading'),
+            typingIndicator: document.getElementById('typing-indicator'),
+            monthLabel: document.querySelector('.month-label'),
+            totalAmount: document.querySelector('.total-amount')
+        };
     },
 
     /**
@@ -216,10 +202,8 @@ const app = {
             return sum;
         }, 0);
 
-        const monthLabel = document.querySelector('.month-label');
-        const amountLabel = document.querySelector('.total-amount');
-        if (monthLabel) monthLabel.textContent = `${year}년 ${month}월`;
-        if (amountLabel) amountLabel.textContent = `₩ ${total.toLocaleString()}`;
+        if (this.elements.monthLabel) this.elements.monthLabel.textContent = `${year}년 ${month}월`;
+        if (this.elements.totalAmount) this.elements.totalAmount.textContent = `₩ ${total.toLocaleString()}`;
     },
 
     changeMonth(delta) {
@@ -236,76 +220,12 @@ const app = {
         const label = document.getElementById('calendar-month-label');
         if (label) label.textContent = `${year}년 ${month}월`;
 
-        const grid = document.getElementById('calendar-grid');
-        if (!grid) return;
-        grid.innerHTML = '';
-
-        const firstDay = new Date(year, month - 1, 1).getDay();
-        const daysInMonth = new Date(year, month, 0).getDate();
-
         const today = new Date();
         const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
 
-        const dailyTotals = {};
-        this.allLedgerData.forEach(item => {
-            if (item.date && item.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)) {
-                const day = parseInt(item.date.split('-')[2], 10);
-                dailyTotals[day] = (dailyTotals[day] || 0) + Number(item.amount);
-            }
+        uiRenderer.renderCalendar(year, month, this.allLedgerData, isCurrentMonth, today, {
+            onDayClick: (y, m, d) => this.openDayModal(y, m, d)
         });
-
-        // Anniversaries definition
-        const ANNIVERSARIES = [
-            { type: 'solar', m: 2, d: 1, icon: '💍', label: '결혼기념일' },
-            { type: 'solar', m: 9, d: 22, icon: '👱‍♂️', label: '남편 생일' },
-            { type: 'solar', m: 10, d: 8, icon: '👩', label: '아내 생일' },
-            { type: 'lunar', m: 2, d: 22, icon: '👵', label: '처가 장모님 생신' },
-            { type: 'lunar', m: 4, d: 4, icon: '👴', label: '본가 아버님 생신' },
-            { type: 'lunar', m: 11, d: 21, icon: '👵', label: '본가 어머님 생신' }
-        ];
-
-        const dailyAnniversaries = {};
-        for (let day = 1; day <= daysInMonth; day++) {
-            const matches = [];
-            // Check Solar
-            matches.push(...ANNIVERSARIES.filter(a => a.type === 'solar' && a.m === month && a.d === day));
-            // Check Lunar
-            try {
-                const solarObj = Solar.fromYmd(year, month, day);
-                const lunarObj = solarObj.getLunar();
-                matches.push(...ANNIVERSARIES.filter(a => a.type === 'lunar' && a.m === Math.abs(lunarObj.getMonth()) && a.d === lunarObj.getDay()));
-            } catch (e) {
-                console.warn('Lunar conversion skipped for day', day);
-            }
-
-            if (matches.length > 0) {
-                dailyAnniversaries[day] = matches;
-            }
-        }
-
-        for (let i = 0; i < firstDay; i++) {
-            grid.innerHTML += `<div class="cal-day empty"></div>`;
-        }
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const isToday = isCurrentMonth && day === today.getDate() ? 'today' : '';
-            const amountHtml = dailyTotals[day] ? `<div class="cal-amount">${dailyTotals[day].toLocaleString()}</div>` : '';
-
-            let anniversaryHtml = '';
-            if (dailyAnniversaries[day]) {
-                const icons = dailyAnniversaries[day].map(a => `<span title="${a.label}">${a.icon}</span>`).join('');
-                anniversaryHtml = `<div class="cal-anniversary">${icons}</div>`;
-            }
-
-            // apply inline relative position for absolute marking
-            grid.innerHTML += `
-                <div class="cal-day ${isToday}" style="position:relative;" onclick="app.openDayModal(${year}, ${month}, ${day})">
-                    <div class="cal-date">${day}</div>
-                    ${anniversaryHtml}
-                    ${amountHtml}
-                </div>
-            `;
-        }
 
         // Render fixed expenses widget
         this.renderFixedExpenses(year, month);
@@ -345,37 +265,7 @@ const app = {
     },
 
     renderCategoryStats() {
-        const d = this.getStatsDate();
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-        const label = document.getElementById('stats-month-label');
-        if (label) label.textContent = `${year}년 ${month}월`;
-        const categoryTotals = {};
-        let totalMonth = 0;
-        const prefix = `${year}-${String(month).padStart(2, '0')}`;
-        this.allLedgerData.forEach(item => {
-            if (item.date && item.date.startsWith(prefix)) {
-                const cat = item.category || '기타';
-                categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
-                totalMonth += Number(item.amount);
-            }
-        });
-        const chartContainer = document.getElementById('stats-chart');
-        const listContainer = document.getElementById('stats-list');
-        if (!chartContainer || !listContainer) return;
-        chartContainer.innerHTML = '';
-        listContainer.innerHTML = '';
-        if (totalMonth === 0) {
-            chartContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px 0;">지출 내역이 없습니다.</div>';
-        } else {
-            listContainer.innerHTML = `<div class="stat-item" style="background:var(--primary-light);border-radius:10px;margin-bottom:4px;"><span class="stat-cat" style="color:var(--primary);">총 지출</span><span class="stat-amt" style="color:var(--primary);font-size:16px;">₩ ${totalMonth.toLocaleString()}</span></div>`;
-            const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
-            sorted.forEach(([cat, amount]) => {
-                const pct = ((amount / totalMonth) * 100).toFixed(1);
-                chartContainer.innerHTML += `<div class="stat-bar-container"><div class="stat-info"><span>${cat}</span><span>${pct}%</span></div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div></div>`;
-                listContainer.innerHTML += `<div class="stat-item"><span class="stat-cat">${cat}</span><span class="stat-amt">₩ ${amount.toLocaleString()}</span></div>`;
-            });
-        }
+        uiRenderer.renderCategoryStats(this.getStatsDate(), this.allLedgerData);
     },
 
     setTrendPeriod(months) {
@@ -513,7 +403,7 @@ const app = {
             return;
         }
 
-        const categories = ['식비', '교통비', '이자', '관리비', '통신비', '공과금', '보험', '문화생활', '모임', '쇼핑', '그리시유', '경조사비', '저축', '기타'];
+
 
         dayItems.forEach(item => {
             const formatedAmt = new Intl.NumberFormat('ko-KR').format(item.amount);
@@ -551,8 +441,7 @@ const app = {
         const item = this.allLedgerData.find(i => i.id === id);
         if (!item) return;
 
-        const categories = ['식비', '교통비', '이자', '관리비', '통신비', '공과금', '보험', '문화생활', '모임', '쇼핑', '그리시유', '경조사비', '저축', '기타'];
-        const catOptions = categories.map(c =>
+        const catOptions = CATEGORIES.map(c =>
             `<option value="${c}" ${c === (item.category || '기타') ? 'selected' : ''}>${c}</option>`
         ).join('');
 
@@ -561,17 +450,17 @@ const app = {
 
         itemDiv.className = 'expense-item editing';
         itemDiv.innerHTML = `
-            <div class="edit-form" style="width:100%; display:flex; flex-direction:column; gap:8px;">
-                <input type="text" id="edit-place-${id}" value="${item.place}" placeholder="상호명" style="padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none;">
-                <div style="display:flex; gap:8px;">
-                    <input type="number" id="edit-amount-${id}" value="${item.amount}" placeholder="금액" style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none;">
-                    <select id="edit-category-${id}" style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; outline:none; background:white;">
+            <div class="edit-form flex-col w-100 gap-8">
+                <input type="text" id="edit-place-${id}" value="${item.place}" placeholder="상호명" class="form-input-sm">
+                <div class="flex-row gap-8">
+                    <input type="number" id="edit-amount-${id}" value="${item.amount}" placeholder="금액" class="form-input-sm flex-1">
+                    <select id="edit-category-${id}" class="form-input-sm flex-1">
                         ${catOptions}
                     </select>
                 </div>
-                <div style="display:flex; gap:8px; justify-content:flex-end;">
-                    <button onclick="app.renderModalExpenses()" style="padding:6px 14px; border:1px solid var(--border-color); border-radius:8px; background:white; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-secondary);">취소</button>
-                    <button onclick="app.saveEditedExpense('${id}')" style="padding:6px 14px; border:none; border-radius:8px; background:var(--primary); color:white; font-size:12px; font-weight:600; cursor:pointer;">저장</button>
+                <div class="flex-row gap-8" style="justify-content:flex-end;">
+                    <button onclick="app.renderModalExpenses()" class="btn-sm-outline">취소</button>
+                    <button onclick="app.saveEditedExpense('${id}')" class="btn-sm-primary">저장</button>
                 </div>
             </div>
         `;
@@ -718,15 +607,19 @@ const app = {
      * Scroll to the bottom of the chat window
      */
     scrollToBottom() {
-        this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
+        if (this.elements.chatContainer) {
+            this.elements.chatContainer.scrollTop = this.elements.chatContainer.scrollHeight;
+        }
     },
 
     /**
      * Add a message bubble to the chat
      */
     appendMessage(text, sender = 'bot', isHtml = false) {
+        if (!this.elements.chatContainer) return;
+
         const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${sender}-message`;
+        msgDiv.classList.add('message', `${sender}-message`);
 
         const bubbleDiv = document.createElement('div');
         bubbleDiv.className = 'message-bubble';
@@ -735,20 +628,38 @@ const app = {
             bubbleDiv.innerHTML = text; // Used for formatting standard answers or displaying tables
         } else {
             bubbleDiv.textContent = text;
+            bubbleDiv.innerHTML = bubbleDiv.innerHTML.replace(/\n/g, '<br/>'); // Preserve newlines
         }
 
         msgDiv.appendChild(bubbleDiv);
-        this.chatWindow.insertBefore(msgDiv, this.typingIndicator);
+        this.elements.chatContainer.appendChild(msgDiv);
         this.scrollToBottom();
     },
 
     showTyping() {
-        this.typingIndicator.style.display = 'flex';
-        this.scrollToBottom();
+        if (this.elements.typingIndicator) {
+            this.elements.typingIndicator.classList.add('show');
+            this.scrollToBottom();
+        }
     },
 
     hideTyping() {
-        this.typingIndicator.style.display = 'none';
+        if (this.elements.typingIndicator) {
+            this.elements.typingIndicator.classList.remove('show');
+        }
+    },
+
+    showGlobalLoading(message = '로딩 중...') {
+        if (this.elements.globalLoading) {
+            this.elements.globalLoading.querySelector('.loading-message').textContent = message;
+            this.elements.globalLoading.style.display = 'flex';
+        }
+    },
+
+    hideGlobalLoading() {
+        if (this.elements.globalLoading) {
+            this.elements.globalLoading.style.display = 'none';
+        }
     },
 
     /**
@@ -769,7 +680,8 @@ const app = {
 
         try {
             // 2. Determine Intent via Gemini
-            const intentRespText = await this.askGeminiIntent(text);
+            const today = new Date().toISOString().split('T')[0];
+            const intentRespText = await geminiApi.askGeminiIntent(text, today, this.currentUser);
             const intentResp = JSON.parse(intentRespText);
 
             if (intentResp.intent === "ADD") {
@@ -804,105 +716,108 @@ const app = {
      * Prompt Gemini to determine what the user wants to do.
      * Requesting strictly JSON output.
      */
-    async askGeminiIntent(userText) {
-        const today = new Date().toISOString().split('T')[0];
-        const prompt = `
-당신은 가계부 작성 AI 비서입니다.
-오늘 날짜는 ${today} 입니다. 날짜가 '오늘', '어제' 등으로 오면 이를 계산하세요.
-현재 사용자는 "${this.currentUser}" 입니다. 별도로 결제자를 지정하지 않으면 결제자는 "${this.currentUser}"(으)로 설정하세요.
-사용자의 입력을 분석하여 다음 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
+    // This function is now handled by geminiApi.askGeminiIntent
+    // async askGeminiIntent(userText) {
+    //     const today = new Date().toISOString().split('T')[0];
+    //     const prompt = `
+    // 당신은 가계부 작성 AI 비서입니다.
+    // 오늘 날짜는 ${today} 입니다. 날짜가 '오늘', '어제' 등으로 오면 이를 계산하세요.
+    // 현재 사용자는 "${this.currentUser}" 입니다. 별도로 결제자를 지정하지 않으면 결제자는 "${this.currentUser}"(으)로 설정하세요.
+    // 사용자의 입력을 분석하여 다음 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
 
-1. 지출 내역 추가 (intent: "ADD")
-사용자가 돈을 썼다는 내용일 경우, 아래 구조로 데이터를 추출하세요 (금액은 숫자만). 카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 기타 중에서 가장 적합한 것을 고르세요.
-{"intent": "ADD", "data": {"date": "YYYY-MM-DD", "amount": 10000, "place": "상호명", "payer": "결제자", "category": "분류"}}
+    // 1. 지출 내역 추가 (intent: "ADD")
+    // 사용자가 돈을 썼다는 내용일 경우, 아래 구조로 데이터를 추출하세요 (금액은 숫자만). 카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 기타 중에서 가장 적합한 것을 고르세요.
+    // {"intent": "ADD", "data": {"date": "YYYY-MM-DD", "amount": 10000, "place": "상호명", "payer": "결제자", "category": "분류"}}
 
-2. 고정비 등록 (intent: "ADD_FIXED")
-사용자가 "매달", "매월", "고정비", "정기", "자동이체" 등 반복적인 지출 항목을 등록하려는 경우. 매달 몇 일에 납부하는지(pay_day), 항목명(name), 금액(amount), 카테고리(category)를 추출하세요.
-{"intent": "ADD_FIXED", "data": {"name": "항목명", "pay_day": 1, "amount": 150000, "category": "분류"}}
+    // 2. 고정비 등록 (intent: "ADD_FIXED")
+    // 사용자가 "매달", "매월", "고정비", "정기", "자동이체" 등 반복적인 지출 항목을 등록하려는 경우. 매달 몇 일에 납부하는지(pay_day), 항목명(name), 금액(amount), 카테고리(category)를 추출하세요.
+    // {"intent": "ADD_FIXED", "data": {"name": "항목명", "pay_day": 1, "amount": 150000, "category": "분류"}}
 
-3. 지출 내역 삭제 (intent: "DELETE")
-사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
-{"intent": "DELETE", "data": null}
+    // 3. 지출 내역 삭제 (intent: "DELETE")
+    // 사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
+    // {"intent": "DELETE", "data": null}
 
-4. 지출 내역 수정 (intent: "EDIT")
-사용자가 기존에 입력한 가계부 내역의 금액, 상호명, 카테고리 등을 수정하거나 변경해달라고 요청하는 경우. 예: "어제 스타벅스 5000원 금액 4500원으로 바꿔줘", "2월 25일 관리비 카테고리 공과금으로 수정해줘"
-{"intent": "EDIT", "data": null}
+    // 4. 지출 내역 수정 (intent: "EDIT")
+    // 사용자가 기존에 입력한 가계부 내역의 금액, 상호명, 카테고리 등을 수정하거나 변경해달라고 요청하는 경우. 예: "어제 스타벅스 5000원 금액 4500원으로 바꿔줘", "2월 25일 관리비 카테고리 공과금으로 수정해줘"
+    // {"intent": "EDIT", "data": null}
 
-5. 특정 내역 조회 및 질문 (intent: "INQUIRY")
-사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
-없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
-{"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
+    // 5. 특정 내역 조회 및 질문 (intent: "INQUIRY")
+    // 사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
+    // 없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
+    // {"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
-6. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
-사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
-{"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
+    // 6. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
+    // 사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
+    // {"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
-7. 지출 분석 및 개선 조언 (intent: "ANALYSIS")
-사용자가 "내 지출 분석해줘", "어떻게 하면 돈을 아낄까?", "이번 달 지출 패턴 어때?" 등 통계를 넘어선 분석 및 조언을 구하는 경우.
-{"intent": "ANALYSIS", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
+    // 7. 지출 분석 및 개선 조언 (intent: "ANALYSIS")
+    // 사용자가 "내 지출 분석해줘", "어떻게 하면 돈을 아낄까?", "이번 달 지출 패턴 어때?" 등 통계를 넘어선 분석 및 조언을 구하는 경우.
+    // {"intent": "ANALYSIS", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
 
-사용자 입력: "${userText}"
-`;
-        return await this.fetchGemini(prompt);
-    },
+    // 사용자 입력: "${userText}"
+    // `;
+    //     return await this.fetchGemini(prompt);
+    // },
 
     /**
      * RAG를 통해 가계부 내역 기반으로 응답 생성.
      */
-    async askGeminiRAG(userText, ledgerStr) {
-        const prompt = `
-당신은 가계부 상담 AI입니다.
-아래의 전체 가계부 내역(JSON 리스트)을 바탕으로 사용자의 질문에 친절하고 정확하게 답변해주세요.
-응답은 일반 텍스트 대신 깔끔하고 세련된 HTML 템플릿 구조를 활용해 주세요.
-* 중요: <html>, <body> 태그는 제외하고 내부 HTML만 작성.
-* 중요표시: 핵심 금액이나 단어는 <b style="color:var(--primary);">강조</b>처리.
-* 리스트/표: 반복되는 내역은 가독성 좋은 <ul><li> 혹은 <table>을 사용하세요 (인라인 CSS 사용 가능, border-collapse, padding 등).
+    // This function is now handled by geminiApi.askGeminiRAG
+    // async askGeminiRAG(userText, ledgerStr) {
+    //     const prompt = `
+    // 당신은 가계부 상담 AI입니다.
+    // 아래의 전체 가계부 내역(JSON 리스트)을 바탕으로 사용자의 질문에 친절하고 정확하게 답변해주세요.
+    // 응답은 일반 텍스트 대신 깔끔하고 세련된 HTML 템플릿 구조를 활용해 주세요.
+    // * 중요: <html>, <body> 태그는 제외하고 내부 HTML만 작성.
+    // * 중요표시: 핵심 금액이나 단어는 <b style="color:var(--primary);">강조</b>처리.
+    // * 리스트/표: 반복되는 내역은 가독성 좋은 <ul><li> 혹은 <table>을 사용하세요 (인라인 CSS 사용 가능, border-collapse, padding 등).
 
-가계부 내역:
-${ledgerStr}
+    // 가계부 내역:
+    // ${ledgerStr}
 
-사용자 질문: "${userText}"
-`;
-        return await this.fetchGemini(prompt);
-    },
+    // 사용자 질문: "${userText}"
+    // `;
+    //     return await this.fetchGemini(prompt);
+    // },
 
-    async fetchGemini(promptText) {
-        if (!this.geminiKey || this.geminiKey.length < 10) {
-            throw new Error('Gemini API 키가 설정되지 않았거나 올바르지 않습니다. 로그아웃 후 다시 로그인해보세요.');
-        }
+    // This function is now handled by geminiApi.fetchGemini
+    // async fetchGemini(promptText) {
+    //     if (!this.geminiKey || this.geminiKey.length < 10) {
+    //         throw new Error('Gemini API 키가 설정되지 않았거나 올바르지 않습니다. 로그아웃 후 다시 로그인해보세요.');
+    //     }
 
-        const url = `${GEMINI_API_URL}?key=${this.geminiKey.trim()}`;
-        console.log("Gemini API 호출 시도 중...");
+    //     const url = `${GEMINI_API_URL}?key=${this.geminiKey.trim()}`;
+    //     console.log("Gemini API 호출 시도 중...");
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: { temperature: 0.1 } // 낮은 온도 세팅으로 답변 안정성 보장
-            })
-        });
+    //     const response = await fetch(url, {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({
+    //             contents: [{ parts: [{ text: promptText }] }],
+    //             generationConfig: { temperature: 0.1 } // 낮은 온도 세팅으로 답변 안정성 보장
+    //         })
+    //     });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Gemini API Error Detail:", errorText);
-            throw new Error(`Gemini API 요청 실패 (${response.status}). 콘솔 로그를 확인하세요.`);
-        }
+    //     if (!response.ok) {
+    //         const errorText = await response.text();
+    //         console.error("Gemini API Error Detail:", errorText);
+    //         throw new Error(`Gemini API 요청 실패 (${response.status}). 콘솔 로그를 확인하세요.`);
+    //     }
 
-        const data = await response.json();
-        // Remove markdown backticks if Gemini accidentally inserts them
-        let textResult = data.candidates[0].content.parts[0].text.trim();
-        if (textResult.startsWith("```json")) {
-            textResult = textResult.substring(7);
-        }
-        if (textResult.startsWith("```html")) {
-            textResult = textResult.substring(7);
-        }
-        if (textResult.endsWith("```")) {
-            textResult = textResult.substring(0, textResult.length - 3);
-        }
-        return textResult.trim();
-    },
+    //     const data = await response.json();
+    //     // Remove markdown backticks if Gemini accidentally inserts them
+    //     let textResult = data.candidates[0].content.parts[0].text.trim();
+    //     if (textResult.startsWith("```json")) {
+    //         textResult = textResult.substring(7);
+    //     }
+    //     if (textResult.startsWith("```html")) {
+    //         textResult = textResult.substring(7);
+    //     }
+    //     if (textResult.endsWith("```")) {
+    //         textResult = textResult.substring(0, textResult.length - 3);
+    //     }
+    //     return textResult.trim();
+    // },
 
 
     // ==========================================
@@ -1157,13 +1072,12 @@ ${ledgerStr}
     },
 
     updateSyncBadge() {
-        const badge = document.getElementById('sync-badge');
-        if (!badge) return;
+        if (!this.elements.syncBadge) return;
         if (this.syncQueue.length > 0) {
-            badge.style.display = 'inline-block';
-            badge.textContent = this.syncQueue.length;
+            this.elements.syncBadge.style.display = 'inline-block';
+            this.elements.syncBadge.textContent = this.syncQueue.length;
         } else {
-            badge.style.display = 'none';
+            this.elements.syncBadge.style.display = 'none';
         }
     },
 
@@ -1252,7 +1166,7 @@ ${ledgerStr}
 현재 가계부 내역 (일부):
 ${JSON.stringify(this.allLedgerData.slice(0, 50))}
 `;
-        const idsStr = await this.fetchGemini(prompt);
+        const idsStr = await geminiApi.fetchGemini(prompt);
         let idsToDelete = [];
         try {
             idsToDelete = JSON.parse(idsStr);
@@ -1322,7 +1236,7 @@ changes에 들어갈 수 있는 필드: place(상호명), amount(금액, 숫자)
 현재 가계부 내역 (일부):
 ${JSON.stringify(this.allLedgerData.slice(0, 50))}
 `;
-        const resultStr = await this.fetchGemini(prompt);
+        const resultStr = await geminiApi.fetchGemini(prompt);
         let editResult;
         try {
             editResult = JSON.parse(resultStr);
@@ -1417,7 +1331,7 @@ ${JSON.stringify(this.allLedgerData.slice(0, 50))}
         let ledgerCsvStr = this.convertToCSV(targetData);
 
         // 3. Send context + question to Gemini
-        const aiAnswerHtml = await this.askGeminiRAG(userText, ledgerCsvStr);
+        const aiAnswerHtml = await geminiApi.askGeminiRAG(userText, ledgerCsvStr);
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
 
@@ -1472,7 +1386,7 @@ ${summaryJsonStr}
 
 사용자 질문: "${userText}"
         `;
-        const aiAnswerHtml = await this.fetchGemini(prompt);
+        const aiAnswerHtml = await geminiApi.fetchGemini(prompt);
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
 
@@ -1519,7 +1433,7 @@ ${ledgerCsvStr}
 
 사용자 요청: "${userText}"
 `;
-        const aiAnswerHtml = await this.fetchGemini(prompt);
+        const aiAnswerHtml = await geminiApi.fetchGemini(prompt);
         this.appendMessage(aiAnswerHtml, 'bot', true);
     },
 

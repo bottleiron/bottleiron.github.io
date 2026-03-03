@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v4';
+const CACHE_NAME = 'sugar-gebu-v5';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
@@ -8,6 +8,10 @@ const URLS_TO_CACHE = [
     '/js/app.js',
     '/js/auth.js',
     '/js/github-api.js',
+    '/js/constants.js',
+    '/js/api/gemini.js',
+    '/js/core/store.js',
+    '/js/ui/renderer.js',
     '/manifest.json'
 ];
 
@@ -66,25 +70,24 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // 3. App Shell (Network First)
-    // 항상 최신 코드를 사용자에게 먼저 시도하고, 오프라인이거나 실패 시 기존 캐시 사용
+    // 3. App Shell (Stale-While-Revalidate)
+    // 캐시된 버전을 빠르게 먼저 보여주고, 백그라운드에서 네트워크를 통해 캐시를 갱신합니다.
     event.respondWith(
-        fetch(event.request)
-            .then(networkResponse => {
-                // Check if response is valid to be cached
-                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                    // type !== 'basic' usually means opaque responses, but html/css in same origin are basic.
-                    return networkResponse;
+        caches.match(event.request).then(cachedResponse => {
+            const fetchPromise = fetch(event.request).then(networkResponse => {
+                if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, responseToCache);
+                    });
                 }
-
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, responseToCache);
-                });
                 return networkResponse;
-            })
-            .catch(() => {
-                return caches.match(event.request);
-            })
+            }).catch(err => {
+                console.warn('Network fetch failed during stale-while-revalidate:', err);
+                // Return cached response if network fails
+            });
+
+            return cachedResponse || fetchPromise;
+        })
     );
 });

@@ -12,6 +12,23 @@ export class GithubApi {
     }
 
     /**
+     * Fetch the latest commit SHA of the main branch
+     */
+    async fetchLatestCommitSha() {
+        try {
+            const { data } = await this.octokit.rest.repos.getCommit({
+                owner: this.owner,
+                repo: this.repo,
+                ref: 'main'
+            });
+            return data.sha;
+        } catch (error) {
+            console.error("Failed to fetch latest commit SHA:", error);
+            return null;
+        }
+    }
+
+    /**
      * Fetch ALL JSON files spanning all years and months
      */
     async fetchAllData() {
