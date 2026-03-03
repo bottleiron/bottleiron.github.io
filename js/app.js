@@ -64,13 +64,11 @@ const app = {
 
         // Check if event listener was already added to prevent duplicates on multiple inits
         if (!this._isInitialized) {
-            // Setup Enter key to send message
             this.elements.chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    this.handleSend();
+                    this.sendMessage();
                 }
             });
-
             // Initialize typing indicator (it should be in HTML, just manage its visibility)
             // this.typingIndicator = document.createElement('div');
             // this.typingIndicator.id = 'typing-indicator';
@@ -678,7 +676,7 @@ const app = {
      */
     async sendMessage() {
         console.log("app.sendMessage() triggered");
-        const text = this.userInput.value.trim();
+        const text = this.elements.chatInput.value.trim();
         if (!text) {
             console.log("Empty text, skipping sendMessage");
             return;
@@ -686,7 +684,7 @@ const app = {
 
         // 1. Show User Message
         this.appendMessage(text, 'user');
-        this.userInput.value = '';
+        this.elements.chatInput.value = '';
         this.showTyping();
 
         try {
