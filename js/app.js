@@ -459,17 +459,17 @@ const app = {
 
         itemDiv.className = 'expense-item editing';
         itemDiv.innerHTML = `
-            <div class="edit-form flex-col w-100 gap-8">
-                <input type="text" id="edit-place-${id}" value="${item.place}" placeholder="상호명" class="form-input-sm">
-                <div class="flex-row gap-8">
-                    <input type="number" id="edit-amount-${id}" value="${item.amount}" placeholder="금액" class="form-input-sm flex-1">
-                    <select id="edit-category-${id}" class="form-input-sm flex-1">
+            <div class="add-form flex-col w-100 gap-8">
+                <input type="text" id="edit-place-${id}" value="${item.place}" placeholder="상호명">
+                <div class="form-row">
+                    <input type="number" id="edit-amount-${id}" value="${item.amount}" placeholder="금액" style="width: 55%;">
+                    <select id="edit-category-${id}" style="width: 45%;">
                         ${catOptions}
                     </select>
                 </div>
-                <div class="flex-row gap-8" style="justify-content:flex-end;">
-                    <button onclick="app.renderModalExpenses()" class="btn-sm-outline">취소</button>
-                    <button onclick="app.saveEditedExpense('${id}')" class="btn-sm-primary">저장</button>
+                <div class="flex-row gap-8" style="justify-content:flex-end; margin-top: 4px;">
+                    <button onclick="app.renderModalExpenses()" class="btn-secondary" style="padding: 10px 16px; font-size: 13px; border-radius: 10px;">취소</button>
+                    <button onclick="app.saveEditedExpense('${id}')" class="add-btn" style="margin-top: 0; padding: 10px 16px; font-size: 13px; border-radius: 10px;">저장</button>
                 </div>
             </div>
         `;
