@@ -1613,6 +1613,60 @@ ${ledgerCsvStr}
     hideGlobalLoading() {
         const loading = document.getElementById('global-loading');
         if (loading) loading.classList.remove('show');
+    },
+
+    /**
+     * Migrate legacy data folders (YYYY/MM/*.json) to monthly files (YYYY-MM.json)
+     */
+    async migrateDataStructure() {
+        if (!this.githubApi) {
+            alert('인증 정보가 없습니다. 다시 로그인 해주세요.');
+            return;
+        }
+
+        if (!confirm('이 작업은 기존의 일 단위 데이터 (data/YYYY/MM) 구조를 새로운 월 단위 (data/YYYY-MM.json) 구조로 전환합니다. 진행하시겠습니까?')) {
+            return;
+        }
+
+        this.showGlobalLoading('데이터 구조 마이그레이션 진행중...');
+        try {
+            // Fetch all data (reads from both legacy and new structures)
+            const allData = await this.githubApi.fetchAllData();
+            if (allData.length === 0) {
+                alert('마이그레이션 할 데이터가 없습니다.');
+                return;
+            }
+
+            // Group by year-month
+            const grouped = {};
+            for (const item of allData) {
+                if (!item.date) continue;
+                const pathParts = item.date.split('-');
+                if (pathParts.length !== 3) continue;
+
+                const year = pathParts[0];
+                const month = pathParts[1];
+                const key = `${year}-${month}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(item);
+            }
+
+            // Sync each month as a single file
+            for (const [key, items] of Object.entries(grouped)) {
+                const filePath = `data/${key}.json`;
+                // Add _action flag so syncSingleFile writes it
+                const queueItems = items.map(i => ({ ...i, _action: 'add' }));
+                await this.githubApi.syncSingleFile(filePath, queueItems);
+            }
+
+            alert('마이그레이션이 완료되었습니다! 🎉\\n이제 새로운 방식으로 속도가 훨씬 빨라집니다.\\nGitHub 저장소의 기존 data/YYYY (연도) 폴더들은 직접 삭제해주셔도 좋습니다.');
+        } catch (error) {
+            console.error(error);
+            alert(`마이그레이션 중 오류가 발생했습니다: ${error.message}`);
+        } finally {
+            this.hideGlobalLoading();
+            this.fetchLatestData();
+        }
     }
 };
 
