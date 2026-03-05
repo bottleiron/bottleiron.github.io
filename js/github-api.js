@@ -33,32 +33,59 @@ export class GithubApi {
      */
     async fetchAllData() {
         try {
-            // 1. Get all year folders in BASE_DATA_PATH
-            const { data: yearFolders } = await this.octokit.rest.repos.getContent({
+            // 1. Get all items in BASE_DATA_PATH
+            const { data: rootItems } = await this.octokit.rest.repos.getContent({
                 owner: this.owner,
                 repo: this.repo,
                 path: BASE_DATA_PATH,
             });
 
-            if (!Array.isArray(yearFolders)) return [];
+            if (!Array.isArray(rootItems)) return [];
 
             let allLedgerData = [];
-            // For each year (exactly 4 digits), get months
-            for (const yearFolder of yearFolders.filter(f => f.type === 'dir' && /^\d{4}$/.test(f.name))) {
-                const { data: monthFolders } = await this.octokit.rest.repos.getContent({
-                    owner: this.owner,
-                    repo: this.repo,
-                    path: yearFolder.path,
-                });
 
-                if (!Array.isArray(monthFolders)) continue;
+            // 2. Fetch new monthly files (YYYY-MM.json)
+            const monthlyFiles = rootItems.filter(f => f.type === 'file' && /^\d{4}-\d{2}\.json$/.test(f.name));
+            const monthlyPromises = monthlyFiles.map(async (file) => {
+                try {
+                    const fileContent = await this.octokit.rest.repos.getContent({
+                        owner: this.owner,
+                        repo: this.repo,
+                        path: file.path,
+                    });
+                    const decoded = decodeURIComponent(escape(window.atob(fileContent.data.content)));
+                    const items = JSON.parse(decoded);
+                    items.forEach(item => { if (!item.id) item.id = uuidv4(); });
+                    return items;
+                } catch (err) {
+                    console.error("Failed to fetch monthly file:", file.path, err);
+                    return [];
+                }
+            });
 
-                // For each month, fetch its data reusing getMonthData logic
-                for (const monthFolder of monthFolders.filter(f => f.type === 'dir')) {
-                    const year = yearFolder.name;
-                    const month = monthFolder.name;
-                    const monthData = await this.getMonthData(year, month);
-                    allLedgerData = allLedgerData.concat(monthData);
+            const monthlyResults = await Promise.all(monthlyPromises);
+            monthlyResults.forEach(arr => { allLedgerData = allLedgerData.concat(arr); });
+
+            // 3. Backward compatibility: Fetch old year/month folders
+            for (const yearFolder of rootItems.filter(f => f.type === 'dir' && /^\d{4}$/.test(f.name))) {
+                try {
+                    const { data: monthFolders } = await this.octokit.rest.repos.getContent({
+                        owner: this.owner,
+                        repo: this.repo,
+                        path: yearFolder.path,
+                    });
+
+                    if (!Array.isArray(monthFolders)) continue;
+
+                    // For each month, fetch its data reusing getMonthData logic
+                    for (const monthFolder of monthFolders.filter(f => f.type === 'dir')) {
+                        const year = yearFolder.name;
+                        const month = monthFolder.name;
+                        const monthData = await this.getMonthData(year, month);
+                        allLedgerData = allLedgerData.concat(monthData);
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch legacy folders:", err);
                 }
             }
 

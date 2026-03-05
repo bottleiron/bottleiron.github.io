@@ -1511,9 +1511,8 @@ ${ledgerCsvStr}
 
                 const year = pathParts[0];
                 const month = pathParts[1];
-                const day = pathParts[2];
                 // Using data path structure compatible with GithubApi
-                const filePath = `data/${year}/${month}/${year}-${month}-${day}.json`;
+                const filePath = `data/${year}-${month}.json`;
 
                 if (!groupedQueue[filePath]) groupedQueue[filePath] = [];
                 groupedQueue[filePath].push(item);
