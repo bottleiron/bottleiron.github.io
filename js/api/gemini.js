@@ -1,6 +1,6 @@
 export const geminiApi = {
     apiKey: null,
-    apiUrl: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+    apiUrl: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash-lite:generateContent",
 
     init(key) {
         this.apiKey = key;
