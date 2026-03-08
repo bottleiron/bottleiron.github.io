@@ -1541,9 +1541,15 @@ ${ledgerCsvStr}
                 groupedQueue[filePath].push(item);
             });
 
-            // Process each file separately
-            for (const [filePath, queueItems] of Object.entries(groupedQueue)) {
-                await this.githubApi.syncSingleFile(filePath, queueItems, this.currentUser);
+            // Process each file separately — only the LAST commit should trigger CI (FCM notification)
+            const fileEntries = Object.entries(groupedQueue);
+            const totalSyncSteps = fileEntries.length + (hasSettingsUpdate && latestSettingsData ? 1 : 0);
+            let currentStep = 0;
+
+            for (const [filePath, queueItems] of fileEntries) {
+                currentStep++;
+                const isLast = currentStep === totalSyncSteps;
+                await this.githubApi.syncSingleFile(filePath, queueItems, this.currentUser, isLast);
             }
 
             // Sync settings if updated
