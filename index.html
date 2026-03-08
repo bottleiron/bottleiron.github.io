@@ -139,8 +139,21 @@
                                 onclick="app.enablePushNotifications()" title="푸시 알림 켜기">🔔</button>
                         </div>
                     </div>
-                    <h1 class="total-amount"></h1>
-                    <p class="summary-desc">이번 달 총 지출</p>
+                    <div class="summary-breakdown"
+                        style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px;">
+                        <div>
+                            <p class="summary-desc" style="margin-bottom:4px; font-size:13px; opacity:0.8;">이번 달 총 지출
+                            </p>
+                            <h2 class="total-amount expense-amount" id="total-expenseAmount"
+                                style="font-size:24px; color:var(--text-primary); margin:0;">0원</h2>
+                        </div>
+                        <div style="text-align:right;">
+                            <p class="summary-desc" style="margin-bottom:4px; font-size:13px; opacity:0.8;">이번 달 총 수입
+                            </p>
+                            <h2 class="total-amount income-amount" id="total-incomeAmount"
+                                style="font-size:20px; color:#ef4444; margin:0;">0원</h2>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -262,6 +275,21 @@
                                 <div class="form-row">
                                     <input type="number" id="add-amount" placeholder="금액 (원)" />
                                     <select id="add-category">
+                                        <option value="식비">식비</option>
+                                        <option value="교통비">교통비</option>
+                                        <option value="이자">이자</option>
+                                        <option value="관리비">관리비</option>
+                                        <option value="통신비">통신비</option>
+                                        <option value="공과금">공과금</option>
+                                        <option value="보험">보험</option>
+                                        <option value="문화생활">문화생활</option>
+                                        <option value="모임">모임</option>
+                                        <option value="쇼핑">쇼핑</option>
+                                        <option value="그리시유">그리시유</option>
+                                        <option value="경조사비">경조사비</option>
+                                        <option value="저축">저축</option>
+                                        <option value="수입">수입</option>
+                                        <option value="기타" selected>기타</option>
                                     </select>
                                 </div>
                                 <button class="add-btn" onclick="app.addExpenseFromModal()">추가하기</button>
@@ -298,6 +326,21 @@
                                         style="width: 55%;" />
                                 </div>
                                 <select id="add-fixed-category">
+                                    <option value="식비">식비</option>
+                                    <option value="교통비">교통비</option>
+                                    <option value="이자">이자</option>
+                                    <option value="관리비">관리비</option>
+                                    <option value="통신비">통신비</option>
+                                    <option value="공과금">공과금</option>
+                                    <option value="보험">보험</option>
+                                    <option value="문화생활">문화생활</option>
+                                    <option value="모임">모임</option>
+                                    <option value="쇼핑">쇼핑</option>
+                                    <option value="그리시유">그리시유</option>
+                                    <option value="경조사비">경조사비</option>
+                                    <option value="저축">저축</option>
+                                    <option value="수입">수입</option>
+                                    <option value="기타" selected>기타</option>
                                 </select>
                                 <button class="add-btn" onclick="app.addFixedExpenseFromUI()" style="margin-top:12px;">+
                                     고정비 등록</button>

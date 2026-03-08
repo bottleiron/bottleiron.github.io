@@ -601,7 +601,6 @@ body {
 
 .cal-amount {
     font-size: 9px;
-    color: var(--accent);
     font-weight: 700;
     text-align: center;
     white-space: nowrap;
@@ -609,6 +608,15 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     width: 100%;
+}
+
+.income_txt {
+    color: var(--accent);
+}
+
+.expense_txt {
+    color: var(--text-primary);
+    /* keeping it a standard dark/blue tint */
 }
 
 .cal-anniversary {

@@ -216,15 +216,26 @@ const app = {
         const month = this.currentDate.getMonth() + 1;
         const prefix = `${year}-${String(month).padStart(2, '0')}`;
 
-        const total = this.allLedgerData.reduce((sum, item) => {
+        let totalExpense = 0;
+        let totalIncome = 0;
+
+        this.allLedgerData.forEach(item => {
             if (item.date && item.date.startsWith(prefix)) {
-                return sum + Number(item.amount);
+                if (item.category === '수입') {
+                    totalIncome += Number(item.amount);
+                } else {
+                    totalExpense += Number(item.amount);
+                }
             }
-            return sum;
-        }, 0);
+        });
 
         if (this.elements.monthLabel) this.elements.monthLabel.textContent = `${year}년 ${month}월`;
-        if (this.elements.totalAmount) this.elements.totalAmount.textContent = `₩ ${total.toLocaleString()}`;
+
+        const expenseEl = document.getElementById('total-expenseAmount');
+        if (expenseEl) expenseEl.textContent = `₩ ${totalExpense.toLocaleString()}`;
+
+        const incomeEl = document.getElementById('total-incomeAmount');
+        if (incomeEl) incomeEl.textContent = `₩ ${totalIncome.toLocaleString()}`;
     },
 
     changeMonth(delta) {
@@ -439,7 +450,7 @@ const app = {
                     <span class="expense-cat">${item.category || '기타'}</span>
                 </div>
                 <div class="expense-right">
-                    <span class="expense-amt">₩ ${formatedAmt}</span>
+                    <span class="expense-amt ${item.category === '수입' ? 'income_txt' : ''}">${item.category === '수입' ? '+' : ''}₩ ${formatedAmt}</span>
                     <button class="edit-btn" onclick="app.editExpenseById('${item.id}')" title="수정">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
