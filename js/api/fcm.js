@@ -38,13 +38,19 @@ export const fcmApi = {
     },
 
     async requestPermission(githubApi, currentUser) {
-        if (!this.messaging) {
-            alert("푸시 알림 모듈이 아직 로드되지 않았습니다.");
-            return false;
-        }
-
         try {
+            if (!this.messaging) {
+                alert("푸시 알림 모듈이 아직 로드되지 않았습니다. 인터넷 연결을 확인하고 앱을 껐다 켜주세요.");
+                return false;
+            }
+
             console.log("Requesting notification permission...");
+
+            if (!('Notification' in window)) {
+                alert("이 기기나 브라우저는 푸시 알림을 지원하지 않습니다. (아이폰은 무조건 '홈 화면에 추가' 후 그 아이콘으로 실행해야 합니다!)");
+                return false;
+            }
+
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 console.log("Notification permission granted.");
@@ -68,7 +74,7 @@ export const fcmApi = {
             }
         } catch (error) {
             console.error('An error occurred while retrieving token. ', error);
-            alert("알림 설정 중 오류가 발생했습니다.");
+            alert("알림 설정 중 오류가 발생했습니다: " + error.message);
             return false;
         }
     },

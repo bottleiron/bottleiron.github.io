@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v17';
+const CACHE_NAME = 'sugar-gebu-v18';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
