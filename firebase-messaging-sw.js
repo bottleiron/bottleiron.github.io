@@ -12,9 +12,13 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
-    const notificationTitle = payload.notification?.title || payload.data?.title || '슈가게부 알림';
+    if (payload.notification) {
+        return;
+    }
+
+    const notificationTitle = payload.data?.title || '슈가게부 알림';
     const notificationOptions = {
-        body: payload.notification?.body || payload.data?.body || '새로운 업데이트가 있습니다.',
+        body: payload.data?.body || '새로운 업데이트가 있습니다.',
         icon: '/icon.svg',
         badge: '/icon.svg'
     };

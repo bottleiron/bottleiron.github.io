@@ -205,7 +205,7 @@ export class GithubApi {
                     owner: this.owner,
                     repo: this.repo,
                     path: filePath,
-                    message: `FCM으로 ${currentUser || '누군가'}이 가게부를 업데이트 했어요`,
+                    message: `${currentUser || '누군가'}이 가계부를 업데이트 했어요`,
                     sha: currentSha
                 });
             }
@@ -215,7 +215,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: filePath,
-                message: `FCM으로 ${currentUser || '누군가'}이 가게부를 업데이트 했어요`,
+                message: `${currentUser || '누군가'}이 가계부를 업데이트 했어요`,
                 content: encodeStr
             };
             if (currentSha) params.sha = currentSha;
