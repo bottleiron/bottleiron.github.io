@@ -158,7 +158,7 @@ export class GithubApi {
     /**
      * Syncs a single day's file
      */
-    async syncSingleFile(filePath, queueItems) {
+    async syncSingleFile(filePath, queueItems, currentUser) {
         let currentSha = null;
         let remoteItems = [];
 
@@ -205,7 +205,7 @@ export class GithubApi {
                     owner: this.owner,
                     repo: this.repo,
                     path: filePath,
-                    message: `Delete empty ledger file via PWA`,
+                    message: `FCM으로 ${currentUser || '누군가'}이 가게부를 업데이트 했어요`,
                     sha: currentSha
                 });
             }
@@ -215,7 +215,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: filePath,
-                message: `Sync ledger via PWA`,
+                message: `FCM으로 ${currentUser || '누군가'}이 가게부를 업데이트 했어요`,
                 content: encodeStr
             };
             if (currentSha) params.sha = currentSha;

@@ -62,8 +62,12 @@ export const fcmApi = {
             if (permission === 'granted') {
                 console.log("Notification permission granted.");
 
-                // Get token
-                const currentToken = await getToken(this.messaging, { vapidKey: VAPID_KEY });
+                // Get token using existing active service worker
+                const registration = await navigator.serviceWorker.ready;
+                const currentToken = await getToken(this.messaging, {
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: registration
+                });
                 if (currentToken) {
                     console.log("FCM Token:", currentToken);
                     await this.saveTokenToGithub(currentToken, githubApi, currentUser);
@@ -103,7 +107,7 @@ export const fcmApi = {
 
             tokensObj[currentUser] = token;
 
-            await githubApi.uploadFile('data/tokens.json', JSON.stringify(tokensObj, null, 2), `Update FCM token for ${currentUser}`, currentSha);
+            await githubApi.uploadFile('data/tokens.json', JSON.stringify(tokensObj, null, 2), `[skip ci] Update FCM token for ${currentUser}`, currentSha);
             console.log("Token saved to GitHub successfully.");
         } catch (error) {
             console.error("Failed to save token to GitHub:", error);

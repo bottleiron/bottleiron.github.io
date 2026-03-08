@@ -1532,7 +1532,7 @@ ${ledgerCsvStr}
 
             // Process each file separately
             for (const [filePath, queueItems] of Object.entries(groupedQueue)) {
-                await this.githubApi.syncSingleFile(filePath, queueItems);
+                await this.githubApi.syncSingleFile(filePath, queueItems, this.currentUser);
             }
 
             // Sync settings if updated
