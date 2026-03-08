@@ -34,11 +34,18 @@ export const fcmApi = {
             console.log("Firebase initialized");
         } catch (error) {
             console.error("Firebase init failed:", error);
+            // Don't alert here to avoid annoying users on every load if they just don't want notifications.
+            // We save the error so we can show it when they click the bell button.
+            this.initError = error;
         }
     },
 
     async requestPermission(githubApi, currentUser) {
         try {
+            if (this.initError) {
+                alert("푸시 알림 초기화 실패: " + this.initError.message + "\n\n아이폰은 iOS 16.4 이상이어야 하며, 반드시 사파리에서 '홈 화면에 추가'를 한 앱에서만 동작합니다.");
+                return false;
+            }
             if (!this.messaging) {
                 alert("푸시 알림 모듈이 아직 로드되지 않았습니다. 인터넷 연결을 확인하고 앱을 껐다 켜주세요.");
                 return false;
