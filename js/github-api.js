@@ -292,4 +292,38 @@ export class GithubApi {
             sha: sha || undefined,
         });
     }
+
+    // ==========================================
+    // GENERIC FILE UTILITIES
+    // ==========================================
+
+    async getFileContent(filePath) {
+        try {
+            const { data } = await this.octokit.rest.repos.getContent({
+                owner: this.owner,
+                repo: this.repo,
+                path: filePath,
+            });
+            return {
+                sha: data.sha,
+                content: decodeURIComponent(escape(atob(data.content)))
+            };
+        } catch (error) {
+            if (error.status === 404) return null;
+            throw error;
+        }
+    }
+
+    async uploadFile(filePath, contentString, message, sha = null) {
+        const contentBase64 = btoa(unescape(encodeURIComponent(contentString)));
+        const params = {
+            owner: this.owner,
+            repo: this.repo,
+            path: filePath,
+            message: message,
+            content: contentBase64,
+        };
+        if (sha) params.sha = sha;
+        await this.octokit.rest.repos.createOrUpdateFileContents(params);
+    }
 }

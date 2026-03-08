@@ -11,6 +11,7 @@ import { CATEGORIES, ANNIVERSARIES } from "./constants.js";
 import { idb } from "./core/store.js";
 import { geminiApi } from "./api/gemini.js";
 import { uiRenderer } from "./ui/renderer.js";
+import { fcmApi } from "./api/fcm.js";
 
 const GITHUB_OWNER = 'bottleiron';
 const GITHUB_REPO = 'my-ledger-data';
@@ -48,6 +49,9 @@ const app = {
 
         if (this.githubPat && !this.githubApi) {
             this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
+
+            // FCM Init
+            fcmApi.init();
         }
 
         console.log("app.init() called, user:", this.currentUser);
@@ -106,6 +110,14 @@ const app = {
             monthLabel: document.querySelector('.month-label'),
             totalAmount: document.querySelector('.total-amount')
         };
+    },
+
+    async enablePushNotifications() {
+        if (!this.githubApi) {
+            alert('인증 정보가 없습니다. 다시 로그인 해주세요.');
+            return;
+        }
+        await fcmApi.requestPermission(this.githubApi, this.currentUser);
     },
 
     /**

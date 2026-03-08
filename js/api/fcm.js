@@ -1,0 +1,99 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCdPGXOcbgQAXE7ABo-_exLKGdnNxo3LzQ",
+    authDomain: "siyucalc.firebaseapp.com",
+    projectId: "siyucalc",
+    storageBucket: "siyucalc.firebasestorage.app",
+    messagingSenderId: "873392553373",
+    appId: "1:873392553373:web:4538cd1c070ab5e194c374",
+    measurementId: "G-HVYLT317J6"
+};
+
+const VAPID_KEY = "BKTYiYuN21epqBJu25yzUgbESZD83xCeIynT9BtehrTbShBIIoZyZjRgtbDkl4x76sG6lmbV0PTyuXPKiHGQS3w";
+
+export const fcmApi = {
+    app: null,
+    messaging: null,
+
+    init() {
+        try {
+            this.app = initializeApp(firebaseConfig);
+            this.messaging = getMessaging(this.app);
+
+            // Listen for foreground messages
+            onMessage(this.messaging, (payload) => {
+                console.log("Foreground Message received: ", payload);
+                if (window.app && window.app.appendMessage) {
+                    const title = payload.notification?.title || payload.data?.title || '새로운 알림';
+                    const body = payload.notification?.body || payload.data?.body || '';
+                    window.app.appendMessage(`🔔 **${title}**<br/>${body}`, 'bot', true);
+                }
+            });
+            console.log("Firebase initialized");
+        } catch (error) {
+            console.error("Firebase init failed:", error);
+        }
+    },
+
+    async requestPermission(githubApi, currentUser) {
+        if (!this.messaging) {
+            alert("푸시 알림 모듈이 아직 로드되지 않았습니다.");
+            return false;
+        }
+
+        try {
+            console.log("Requesting notification permission...");
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                console.log("Notification permission granted.");
+
+                // Get token
+                const currentToken = await getToken(this.messaging, { vapidKey: VAPID_KEY });
+                if (currentToken) {
+                    console.log("FCM Token:", currentToken);
+                    await this.saveTokenToGithub(currentToken, githubApi, currentUser);
+                    alert("푸시 알림 설정이 완료되었습니다! 🎉");
+                    return true;
+                } else {
+                    console.log('No registration token available. Request permission to generate one.');
+                    alert("토큰 발급에 실패했습니다. (지원되지 않는 브라우저 또는 환경일 수 있습니다.)");
+                    return false;
+                }
+            } else {
+                console.log("Notification permission not granted.");
+                alert("알림 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해 주세요.");
+                return false;
+            }
+        } catch (error) {
+            console.error('An error occurred while retrieving token. ', error);
+            alert("알림 설정 중 오류가 발생했습니다.");
+            return false;
+        }
+    },
+
+    async saveTokenToGithub(token, githubApi, currentUser) {
+        try {
+            let tokensObj = {};
+            let currentSha = null;
+            try {
+                // Try to get existing tokens.json
+                const contentData = await githubApi.getFileContent('data/tokens.json');
+                if (contentData && contentData.content) {
+                    tokensObj = JSON.parse(contentData.content);
+                    currentSha = contentData.sha;
+                }
+            } catch (err) {
+                console.log("tokens.json not found or empty, creating new one.");
+            }
+
+            tokensObj[currentUser] = token;
+
+            await githubApi.uploadFile('data/tokens.json', JSON.stringify(tokensObj, null, 2), `Update FCM token for ${currentUser}`, currentSha);
+            console.log("Token saved to GitHub successfully.");
+        } catch (error) {
+            console.error("Failed to save token to GitHub:", error);
+        }
+    }
+};
