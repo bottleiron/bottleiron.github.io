@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v16';
+const CACHE_NAME = 'sugar-gebu-v17';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
@@ -25,7 +25,7 @@ self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('Opened cache v4');
+                console.log('Opened cache', CACHE_NAME);
                 return cache.addAll(URLS_TO_CACHE);
             })
     );
