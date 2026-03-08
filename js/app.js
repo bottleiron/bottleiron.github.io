@@ -92,7 +92,7 @@ const app = {
 
             this._isInitialized = true;
             this.loadSyncQueue();
-            this.fetchLatestData();
+            this.loadData();
         }
     },
 
