@@ -205,7 +205,7 @@ export class GithubApi {
                     owner: this.owner,
                     repo: this.repo,
                     path: filePath,
-                    message: `${isLastCommit ? '' : '[skip ci] '}${currentUser || '누군가'}이 가계부를 업데이트 했어요`,
+                    message: `${isLastCommit ? '' : '[skip ci] '}${currentUser || '누군가'}님이 가계부를 업데이트 했어요`,
                     sha: currentSha
                 });
             }
@@ -215,7 +215,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: filePath,
-                message: `${isLastCommit ? '' : '[skip ci] '}${currentUser || '누군가'}이 가계부를 업데이트 했어요`,
+                message: `${isLastCommit ? '' : '[skip ci] '}${currentUser || '누군가'}님이 가계부를 업데이트 했어요`,
                 content: encodeStr
             };
             if (currentSha) params.sha = currentSha;
