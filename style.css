@@ -615,8 +615,7 @@ body {
 }
 
 .expense_txt {
-    color: var(--text-primary);
-    /* keeping it a standard dark/blue tint */
+    color: var(--primary);
 }
 
 .cal-anniversary {
