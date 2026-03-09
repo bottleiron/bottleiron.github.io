@@ -79,7 +79,7 @@ ${ledgerCsvStr}
     },
 
     async parseChatInput(userText, currentDateStr) {
-        const CATEGORIES_LIST = "식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 수입, 기타";
+        const CATEGORIES_LIST = "식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 병원, 수입, 기타";
 
         const prompt = `
 당신은 텍스트를 파싱하여 정확하게 가계부 JSON 항목을 생성하는 훌륭한 파서입니다.
