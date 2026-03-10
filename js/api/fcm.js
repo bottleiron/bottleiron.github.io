@@ -59,8 +59,12 @@ export const fcmApi = {
 
                 // Get token using existing active service worker
                 const registration = await navigator.serviceWorker.ready;
+                if (!this.vapidKey) {
+                    alert("VAPID Key가 설정되지 않았습니다. 초기 설정을 다시 확인해주세요.");
+                    return false;
+                }
                 const currentToken = await getToken(this.messaging, {
-                    vapidKey: VAPID_KEY,
+                    vapidKey: this.vapidKey,
                     serviceWorkerRegistration: registration
                 });
                 if (currentToken) {
