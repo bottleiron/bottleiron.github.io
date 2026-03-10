@@ -51,7 +51,14 @@ const app = {
             this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
 
             // FCM Init
-            fcmApi.init();
+            const firebaseConfigStr = sessionStorage.getItem('firebaseConfig');
+            if (firebaseConfigStr) {
+                try {
+                    fcmApi.init(JSON.parse(firebaseConfigStr));
+                } catch (e) {
+                    console.error("FCM integration failed:", e);
+                }
+            }
         }
 
         console.log("app.init() called, user:", this.currentUser);

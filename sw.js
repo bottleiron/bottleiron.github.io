@@ -11,6 +11,7 @@ const URLS_TO_CACHE = [
     '/js/constants.js',
     '/js/api/gemini.js',
     '/js/core/store.js',
+    '/js/core/idb-helper.js',
     '/js/ui/renderer.js',
     '/manifest.json',
     '/assets/fontawesome/css/all.min.css',

@@ -73,10 +73,11 @@ const auth = {
     setupKeys() {
         const gemini = document.getElementById('setup-gemini-key').value.trim();
         const github = document.getElementById('setup-github-pat').value.trim();
+        const firebase = document.getElementById('setup-firebase-config').value.trim();
         const pin = document.getElementById('setup-pin').value.trim();
         const errorEl = document.getElementById('setup-error');
 
-        if (!gemini || !github || !pin) {
+        if (!gemini || !github || !pin || !firebase) {
             errorEl.textContent = '모든 항목을 입력해주세요.';
             return;
         }
@@ -92,13 +93,16 @@ const auth = {
             // Encrypt and save to localStorage
             const encGemini = CryptoJS.AES.encrypt(gemini, pin).toString();
             const encGithub = CryptoJS.AES.encrypt(github, pin).toString();
+            const encFirebase = CryptoJS.AES.encrypt(firebase, pin).toString();
 
             localStorage.setItem('encryptedGemini', encGemini);
             localStorage.setItem('encryptedGithub', encGithub);
+            localStorage.setItem('encryptedFirebase', encFirebase);
 
             // Save decrypted to sessionStorage for immediate use
             sessionStorage.setItem('geminiKey', gemini);
             sessionStorage.setItem('githubPat', github);
+            sessionStorage.setItem('firebaseConfig', firebase);
 
             this.switchScreen('user-select-screen');
         } catch (e) {
@@ -124,10 +128,12 @@ const auth = {
             const url = new URL(urlInput);
             const importG = url.searchParams.get('g');
             const importH = url.searchParams.get('h');
+            const importF = url.searchParams.get('f');
 
-            if (importG && importH) {
+            if (importG && importH && importF) {
                 localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
+                localStorage.setItem('encryptedFirebase', importF);
                 alert("키가 저장되었습니다. 암호화할 때 쓰신 4자리 숫자 PIN을 입력해 로그인을 완료하세요.");
 
                 // 설정 화면 폼 닫고 락 스크린으로 보내기
@@ -147,8 +153,9 @@ const auth = {
     attemptLogin() {
         const encGemini = localStorage.getItem('encryptedGemini');
         const encGithub = localStorage.getItem('encryptedGithub');
+        const encFirebase = localStorage.getItem('encryptedFirebase');
 
-        if (!encGemini || !encGithub) {
+        if (!encGemini || !encGithub || !encFirebase) {
             this.showError("등록된 API 키가 없습니다. 앱 데이터 초기화 후 다시 설정하세요.");
             return;
         }
@@ -157,14 +164,20 @@ const auth = {
             // 복호화 시도
             const decryptedGemini = CryptoJS.AES.decrypt(encGemini, this.currentPin).toString(CryptoJS.enc.Utf8);
             const decryptedGithub = CryptoJS.AES.decrypt(encGithub, this.currentPin).toString(CryptoJS.enc.Utf8);
+            const decryptedFirebase = CryptoJS.AES.decrypt(encFirebase, this.currentPin).toString(CryptoJS.enc.Utf8);
 
-            if (!decryptedGemini || !decryptedGithub) {
+            if (!decryptedGemini || !decryptedGithub || !decryptedFirebase) {
                 throw new Error("Invalid PIN");
             }
 
             // 복호화 성공 -> 세션 스토리지에 임시 저장
             sessionStorage.setItem("geminiKey", decryptedGemini);
             sessionStorage.setItem("githubPat", decryptedGithub);
+            sessionStorage.setItem("firebaseConfig", decryptedFirebase);
+
+            if (typeof idb !== 'undefined') {
+                idb.set('firebase_config', JSON.parse(decryptedFirebase)).catch(console.error);
+            }
 
             this.switchScreen('user-select-screen');
 
@@ -177,6 +190,7 @@ const auth = {
     logout() {
         sessionStorage.removeItem("geminiKey");
         sessionStorage.removeItem("githubPat");
+        sessionStorage.removeItem("firebaseConfig");
         sessionStorage.removeItem("currentUser");
         this.clearParams();
         this.switchScreen('lock-screen');
@@ -186,6 +200,7 @@ const auth = {
         if (confirm("저장된 API 키와 PIN 설정이 모두 삭제됩니다. 계속하시겠습니까?")) {
             localStorage.removeItem('encryptedGemini');
             localStorage.removeItem('encryptedGithub');
+            localStorage.removeItem('encryptedFirebase');
             sessionStorage.clear();
             this.clearParams();
             this.switchScreen('setup-screen');
@@ -203,13 +218,14 @@ const auth = {
     copyShareUrl() {
         const encG = localStorage.getItem('encryptedGemini');
         const encH = localStorage.getItem('encryptedGithub');
-        if (!encG || !encH) {
+        const encF = localStorage.getItem('encryptedFirebase');
+        if (!encG || !encH || !encF) {
             alert("저장된 키가 없습니다. 먼저 초기 설정을 완료해주세요.");
             return;
         }
 
         // Construct URL
-        const shareUrl = `${window.location.origin}${window.location.pathname}?g=${encodeURIComponent(encG)}&h=${encodeURIComponent(encH)}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}?g=${encodeURIComponent(encG)}&h=${encodeURIComponent(encH)}&f=${encodeURIComponent(encF)}`;
 
         // Copy to clipboard
         navigator.clipboard.writeText(shareUrl).then(() => {
@@ -230,11 +246,13 @@ const auth = {
         const urlParams = new URLSearchParams(window.location.search);
         const importG = urlParams.get('g');
         const importH = urlParams.get('h');
+        const importF = urlParams.get('f');
 
-        if (importG && importH) {
+        if (importG && importH && importF) {
             if (confirm("공유받은 API 키 설정을 이 기기에 적용할까요?")) {
                 localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
+                localStorage.setItem('encryptedFirebase', importF);
                 alert("키가 임시 저장되었습니다. 암호화할 때 사용한 6자리 PIN을 입력하여 로그인을 완료해주세요.\n(주의: 완료 후 주소창의 긴 URL은 지워주세요!)");
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
@@ -242,14 +260,15 @@ const auth = {
 
         const encGemini = localStorage.getItem('encryptedGemini');
         const encGithub = localStorage.getItem('encryptedGithub');
+        const encFirebase = localStorage.getItem('encryptedFirebase');
 
-        if (!encGemini || !encGithub) {
+        if (!encGemini || !encGithub || !encFirebase) {
             // No keys setup yet
             this.switchScreen('setup-screen');
             return;
         }
 
-        if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat")) {
+        if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat") && sessionStorage.getItem("firebaseConfig")) {
             if (sessionStorage.getItem("currentUser")) {
                 this.switchScreen('chat-screen');
                 if (typeof app !== 'undefined' && typeof app.init === 'function') {

@@ -1,23 +1,14 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyCdPGXOcbgQAXE7ABo-_exLKGdnNxo3LzQ",
-    authDomain: "siyucalc.firebaseapp.com",
-    projectId: "siyucalc",
-    storageBucket: "siyucalc.firebasestorage.app",
-    messagingSenderId: "873392553373",
-    appId: "1:873392553373:web:4538cd1c070ab5e194c374",
-    measurementId: "G-HVYLT317J6"
-};
-
 const VAPID_KEY = "BKTYiYuN21epqBJu25yzUgbESZD83xCeIynT9BtehrTbShBIIoZyZjRgtbDkl4x76sG6lmbV0PTyuXPKiHGQS3w";
 
 export const fcmApi = {
     app: null,
     messaging: null,
 
-    init() {
+    init(firebaseConfig) {
+        if (!firebaseConfig) {
+            console.warn("No Firebase configuration provided to fcmApi.init()");
+            return;
+        }
         try {
             this.app = initializeApp(firebaseConfig);
             this.messaging = getMessaging(this.app);
