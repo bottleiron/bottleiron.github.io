@@ -1,3 +1,6 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
+
 const VAPID_KEY = "BKTYiYuN21epqBJu25yzUgbESZD83xCeIynT9BtehrTbShBIIoZyZjRgtbDkl4x76sG6lmbV0PTyuXPKiHGQS3w";
 
 export const fcmApi = {
