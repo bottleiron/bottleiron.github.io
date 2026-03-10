@@ -135,9 +135,9 @@ const auth = {
         try {
             // URL 문자열인지 확인 후 파싱
             const url = new URL(urlInput);
-            const importG = url.searchParams.get('g');
-            const importH = url.searchParams.get('h');
-            const importF = url.searchParams.get('f');
+            const importG = url.searchParams.get('g')?.trim().replace(/\/+$/, '');
+            const importH = url.searchParams.get('h')?.trim().replace(/\/+$/, '');
+            const importF = url.searchParams.get('f')?.trim().replace(/\/+$/, '');
 
             if (importG && importH && importF) {
                 localStorage.setItem('encryptedGemini', importG);
@@ -171,12 +171,17 @@ const auth = {
 
         try {
             // 복호화 시도
-            const decryptedGemini = CryptoJS.AES.decrypt(encGemini, this.currentPin).toString(CryptoJS.enc.Utf8);
-            const decryptedGithub = CryptoJS.AES.decrypt(encGithub, this.currentPin).toString(CryptoJS.enc.Utf8);
-            const decryptedFirebase = CryptoJS.AES.decrypt(encFirebase, this.currentPin).toString(CryptoJS.enc.Utf8);
+            const decGeminiSrc = CryptoJS.AES.decrypt(encGemini, this.currentPin);
+            const decGithubSrc = CryptoJS.AES.decrypt(encGithub, this.currentPin);
+            const decFirebaseSrc = CryptoJS.AES.decrypt(encFirebase, this.currentPin);
+
+            const decryptedGemini = decGeminiSrc.toString(CryptoJS.enc.Utf8);
+            const decryptedGithub = decGithubSrc.toString(CryptoJS.enc.Utf8);
+            const decryptedFirebase = decFirebaseSrc.toString(CryptoJS.enc.Utf8);
 
             if (!decryptedGemini || !decryptedGithub || !decryptedFirebase) {
-                throw new Error("Invalid PIN");
+                console.warn("Decryption failed for one or more keys. Possibly wrong PIN or truncated data.");
+                throw new Error("Invalid PIN or Corrupted Data");
             }
 
             // 복호화 성공 -> 세션 스토리지에 임시 저장
@@ -259,9 +264,14 @@ const auth = {
     // 초기 실행 시 이미 세션이 있으면 통과
     checkSession() {
         const urlParams = new URLSearchParams(window.location.search);
-        const importG = urlParams.get('g');
-        const importH = urlParams.get('h');
-        const importF = urlParams.get('f');
+        let importG = urlParams.get('g');
+        let importH = urlParams.get('h');
+        let importF = urlParams.get('f');
+
+        // 처리: URL 공유 시 마지막에 /가 붙는 경우나 공백 제거
+        if (importG) importG = importG.trim().replace(/\/+$/, '');
+        if (importH) importH = importH.trim().replace(/\/+$/, '');
+        if (importF) importF = importF.trim().replace(/\/+$/, '');
 
         if (importG && importH && importF) {
             if (confirm("공유받은 API 키 설정을 이 기기에 적용할까요?")) {
