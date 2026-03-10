@@ -20,30 +20,33 @@ const URLS_TO_CACHE = [
     '/assets/fontawesome/webfonts/fa-brands-400.woff2'
 ];
 
-self.addEventListener('install', event => {
-    // 새 서비스워커가 바로 설치되도록 대기 중단
+self.addEventListener('install', (event) => {
     self.skipWaiting();
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Opened cache', CACHE_NAME);
-                return cache.addAll(URLS_TO_CACHE);
-            })
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(URLS_TO_CACHE);
+        })
     );
 });
 
-self.addEventListener('activate', event => {
-    const cacheAllowlist = [CACHE_NAME];
+// Activate Event: Cleanup old caches and claim clients
+self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheAllowlist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim()) // 즉시 제어권 확보
+        Promise.all([
+            // Claim clients immediately
+            self.clients.claim(),
+            // Delete old caches
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (cacheName !== CACHE_NAME) {
+                            console.log('Service Worker: Clearing Old Cache');
+                            return caches.delete(cacheName);
+                        }
+                    })
+                );
+            })
+        ])
     );
 });
 
