@@ -38,6 +38,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: BASE_DATA_PATH,
+                headers: { 'If-None-Match': '' }
             });
 
             if (!Array.isArray(rootItems)) return [];
@@ -52,6 +53,7 @@ export class GithubApi {
                         owner: this.owner,
                         repo: this.repo,
                         path: file.path,
+                        headers: { 'If-None-Match': '' }
                     });
                     const decoded = decodeURIComponent(escape(window.atob(fileContent.data.content)));
                     const items = JSON.parse(decoded);
@@ -236,6 +238,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: BASE_DATA_PATH,
+                headers: { 'If-None-Match': '' }
             });
 
             if (Array.isArray(dataDirContent)) {
@@ -246,6 +249,7 @@ export class GithubApi {
                     owner: this.owner,
                     repo: this.repo,
                     path: settingsDir.path,
+                    headers: { 'If-None-Match': '' }
                 });
 
                 if (Array.isArray(settingsDirContent)) {
@@ -258,6 +262,7 @@ export class GithubApi {
                 owner: this.owner,
                 repo: this.repo,
                 path: path,
+                headers: { 'If-None-Match': '' }
             });
             const content = decodeURIComponent(escape(atob(data.content)));
             return JSON.parse(content);
