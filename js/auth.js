@@ -89,6 +89,15 @@ const auth = {
 
         errorEl.textContent = '';
 
+        // Validate Firebase JSON format
+        try {
+            JSON.parse(firebase);
+        } catch (e) {
+            errorEl.textContent = 'Firebase Configuration이 올바른 JSON 형식이 아닙니다. { "key": "value" } 형식을 확인해주세요.';
+            console.error("Firebase JSON Parse Error:", e);
+            return;
+        }
+
         try {
             // Encrypt and save to localStorage
             const encGemini = CryptoJS.AES.encrypt(gemini, pin).toString();
@@ -176,7 +185,13 @@ const auth = {
             sessionStorage.setItem("firebaseConfig", decryptedFirebase);
 
             if (typeof idb !== 'undefined') {
-                idb.set('firebase_config', JSON.parse(decryptedFirebase)).catch(console.error);
+                try {
+                    idb.set('firebase_config', JSON.parse(decryptedFirebase)).catch(console.error);
+                } catch (jsonErr) {
+                    console.error("Decrypted Firebase config is not valid JSON:", jsonErr);
+                    this.showError("Firebase 설정 형식이 올바르지 않습니다. 다시 설정해주세요.");
+                    return;
+                }
             }
 
             this.switchScreen('user-select-screen');
@@ -253,7 +268,7 @@ const auth = {
                 localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
                 localStorage.setItem('encryptedFirebase', importF);
-                alert("키가 임시 저장되었습니다. 암호화할 때 사용한 6자리 PIN을 입력하여 로그인을 완료해주세요.\n(주의: 완료 후 주소창의 긴 URL은 지워주세요!)");
+                alert(`키가 임시 저장되었습니다. 암호화할 때 사용하신 ${this.maxPinLength}자리 PIN을 입력하여 로그인을 완료해주세요.\n(주의: 완료 후 주소창의 긴 URL은 지워주세요!)`);
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
