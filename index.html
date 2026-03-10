@@ -60,10 +60,10 @@
 
             <hr class="divider">
             <div class="mb-24">
-                <label class="form-label">공유받은 기기 연결 링크 붙여넣기 (PWA 환경용)</label>
-                <div class="flex-row gap-8">
-                    <input type="text" class="form-input flex-1" id="setup-share-url" placeholder="복사한 URL을 여기에 붙여넣으세요">
-                    <button class="btn-secondary" onclick="auth.importShareUrl()">적용</button>
+                <label class="form-label">기존 기기 연결 (연결 코드 또는 링크)</label>
+                <div class="flex-col gap-8">
+                    <textarea class="form-input" id="setup-share-url" placeholder="다른 기기에서 복사한 '기기 연결 코드' 또는 '공유 링크'를 여기에 붙여넣으세요." style="height: 60px; font-size: 11px;"></textarea>
+                    <button class="btn-secondary w-100" style="margin-top:5px; height:36px;" onclick="auth.importShareUrl()">설정 불러오기</button>
                 </div>
             </div>
 
@@ -119,8 +119,10 @@
                 </button>
             </div>
             <button class="logout-text-btn" onclick="auth.logout()">처음으로 돌아가기</button>
-            <button class="logout-text-btn" onclick="auth.copyShareUrl()" style="margin-top:10px;">기기 연결 링크 복사 (URL
-                공유)</button>
+            <div style="margin-top:20px; display:flex; flex-direction:column; gap:10px;">
+                <button class="btn btn-secondary" style="font-size:12px; padding:8px;" onclick="auth.exportSettings()">🛡️ 모든 설정 내보내기 (기기 연결 코드로 복사)</button>
+                <button class="logout-text-btn" onclick="auth.copyShareUrl()" style="font-size:11px; opacity:0.8;">링크로 기기 연결 (URL 공유)</button>
+            </div>
         </div>
     </div>
 

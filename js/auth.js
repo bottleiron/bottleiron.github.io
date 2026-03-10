@@ -121,38 +121,50 @@ const auth = {
     },
 
     /**
-     * PWA 환경에서 붙여넣은 공유 URL 파싱
+     * PWA 환경 및 긴 데이터 연동을 위한 통합 설정 가져오기
      */
     importShareUrl() {
-        const urlInput = document.getElementById('setup-share-url').value.trim();
+        let input = document.getElementById('setup-share-url').value.trim();
         const errorEl = document.getElementById('setup-error');
 
-        if (!urlInput) {
-            errorEl.textContent = '공유 링크를 먼저 붙여넣어주세요.';
+        if (!input) {
+            errorEl.textContent = '연결 코드 또는 링크를 먼저 붙여넣어주세요.';
             return;
         }
 
         try {
-            // URL 문자열인지 확인 후 파싱
-            const url = new URL(urlInput);
-            const importG = url.searchParams.get('g')?.trim().replace(/\/+$/, '');
-            const importH = url.searchParams.get('h')?.trim().replace(/\/+$/, '');
-            const importF = url.searchParams.get('f')?.trim().replace(/\/+$/, '');
+            let importG, importH, importF;
+
+            // 1. JSON 형식인지 확인 (Unified Settings Code)
+            if (input.startsWith('{')) {
+                const data = JSON.parse(input);
+                importG = data.g;
+                importH = data.h;
+                importF = data.f;
+            } 
+            // 2. URL 형식인지 확인
+            else {
+                const url = new URL(input);
+                importG = url.searchParams.get('g')?.trim().replace(/\/+$/, '');
+                importH = url.searchParams.get('h')?.trim().replace(/\/+$/, '');
+                importF = url.searchParams.get('f')?.trim().replace(/\/+$/, '');
+            }
 
             if (importG && importH && importF) {
                 localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
                 localStorage.setItem('encryptedFirebase', importF);
-                alert("키가 저장되었습니다. 암호화할 때 쓰신 4자리 숫자 PIN을 입력해 로그인을 완료하세요.");
+                alert(`설정이 로드되었습니다. 암호화할 때 사용하신 ${this.maxPinLength}자리 PIN을 입력하여 로그인을 완료하세요.`);
 
                 // 설정 화면 폼 닫고 락 스크린으로 보내기
                 document.getElementById('setup-share-url').value = '';
                 this.switchScreen('lock-screen');
             } else {
-                errorEl.textContent = '올바른 공유 링크 형식이 아닙니다 (키 누락).';
+                errorEl.textContent = '올바른 형식의 설정 코드가 아닙니다. 데이터가 누락되었습니다.';
             }
         } catch (e) {
-            errorEl.textContent = '유효한 웹 주소(URL) 형식이 아닙니다.';
+            console.error("Import error:", e);
+            errorEl.textContent = '불러오기에 실패했습니다. 코드가 정확한지 확인해 주세요.';
         }
     },
 
@@ -236,6 +248,27 @@ const auth = {
         if (typeof app !== 'undefined' && typeof app.init === 'function') {
             app.init();
         }
+    },
+
+    exportSettings() {
+        const encG = localStorage.getItem('encryptedGemini');
+        const encH = localStorage.getItem('encryptedGithub');
+        const encF = localStorage.getItem('encryptedFirebase');
+        
+        if (!encG || !encH || !encF) {
+            alert("저장된 키가 없습니다. 먼저 초기 설정을 완료해주세요.");
+            return;
+        }
+
+        const config = { g: encG, h: encH, f: encF };
+        const configStr = JSON.stringify(config);
+
+        navigator.clipboard.writeText(configStr).then(() => {
+            alert("🔒 모든 설정이 '기기 연결 코드'로 복사되었습니다!\n\n문자열이 매우 길 수 있으니 전체를 잘 복사하여 새로운 기기의 '기존 기기 정보 불러오기' 칸에 붙여넣으세요.");
+        }).catch(err => {
+            console.error("복사 실패", err);
+            prompt("아래 코드를 전체 선택하여 복사한 뒤 다른 기기에서 사용하세요:", configStr);
+        });
     },
 
     copyShareUrl() {
