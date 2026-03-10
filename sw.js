@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sugar-gebu-v22';
+const CACHE_NAME = 'sugar-gebu-v24';
 
 // App Shell Resources (정적 파일)
 const URLS_TO_CACHE = [
@@ -96,3 +96,37 @@ self.addEventListener('fetch', event => {
         })
     );
 });
+
+// ==========================================
+// FCM Background Messaging Integrated
+// ==========================================
+importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-compat.js');
+importScripts('js/core/idb-helper.js');
+
+async function initFirebase() {
+    try {
+        const config = await idbHelper.get('firebase_config');
+        if (config) {
+            firebase.initializeApp(config);
+            const messaging = firebase.messaging();
+
+            messaging.onBackgroundMessage((payload) => {
+                console.log('[sw.js] Received background message ', payload);
+                const notificationTitle = payload.notification?.title || payload.data?.title || '슈가게부 알림';
+                const notificationOptions = {
+                    body: payload.notification?.body || payload.data?.body || '새로운 업데이트가 있습니다.',
+                    icon: '/icon.svg',
+                    badge: '/icon.svg',
+                    data: payload.data
+                };
+                self.registration.showNotification(notificationTitle, notificationOptions);
+            });
+            console.log("Firebase SW logic integrated in sw.js");
+        }
+    } catch (e) {
+        console.error("Firebase integration in sw.js failed:", e);
+    }
+}
+
+initFirebase();
