@@ -1,11 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
 
-const VAPID_KEY = "BKTYiYuN21epqBJu25yzUgbESZD83xCeIynT9BtehrTbShBIIoZyZjRgtbDkl4x76sG6lmbV0PTyuXPKiHGQS3w";
-
 export const fcmApi = {
     app: null,
     messaging: null,
+    vapidKey: null,
 
     init(firebaseConfig) {
         if (!firebaseConfig) {
@@ -15,6 +14,8 @@ export const fcmApi = {
         try {
             this.app = initializeApp(firebaseConfig);
             this.messaging = getMessaging(this.app);
+            this.vapidKey = firebaseConfig.vapidKey;
+            console.log("FCM initialized with dynamic config", this.vapidKey ? "(VAPID included)" : "(No VAPID)");
 
             // Listen for foreground messages
             onMessage(this.messaging, (payload) => {
