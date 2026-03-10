@@ -184,20 +184,23 @@ const auth = {
                 throw new Error("Invalid PIN or Corrupted Data");
             }
 
-            // 복호화 성공 -> 세션 스토리지에 임시 저장
+            let firebaseObj;
+            try {
+                firebaseObj = JSON.parse(decryptedFirebase);
+            } catch (jsonErr) {
+                console.error("Decrypted Firebase config is not valid JSON:", jsonErr);
+                this.showError("Firebase 설정 형식이 올바르지 않거나 데이터가 깨졌습니다. 앱을 초기화하고 다시 설정해주세요.");
+                return;
+            }
+
+            // 복호화 및 검증 성공 -> 기기 DB 및 세션 스토리지에 저장
+            if (typeof idb !== 'undefined') {
+                idb.set('firebase_config', firebaseObj).catch(console.error);
+            }
+
             sessionStorage.setItem("geminiKey", decryptedGemini);
             sessionStorage.setItem("githubPat", decryptedGithub);
             sessionStorage.setItem("firebaseConfig", decryptedFirebase);
-
-            if (typeof idb !== 'undefined') {
-                try {
-                    idb.set('firebase_config', JSON.parse(decryptedFirebase)).catch(console.error);
-                } catch (jsonErr) {
-                    console.error("Decrypted Firebase config is not valid JSON:", jsonErr);
-                    this.showError("Firebase 설정 형식이 올바르지 않습니다. 다시 설정해주세요.");
-                    return;
-                }
-            }
 
             this.switchScreen('user-select-screen');
 
@@ -293,7 +296,19 @@ const auth = {
             return;
         }
 
-        if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat") && sessionStorage.getItem("firebaseConfig")) {
+        const firebaseConfig = sessionStorage.getItem("firebaseConfig");
+        
+        if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat") && firebaseConfig) {
+            // Validate JSON before proceeding
+            try {
+                JSON.parse(firebaseConfig);
+            } catch (e) {
+                console.warn("Stored Firebase config is invalid, clearing session.");
+                sessionStorage.clear();
+                this.switchScreen('lock-screen');
+                return;
+            }
+
             if (sessionStorage.getItem("currentUser")) {
                 this.switchScreen('chat-screen');
                 if (typeof app !== 'undefined' && typeof app.init === 'function') {

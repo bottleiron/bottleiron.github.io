@@ -54,11 +54,16 @@ const app = {
             const firebaseConfigStr = sessionStorage.getItem('firebaseConfig');
             if (firebaseConfigStr) {
                 try {
-                    fcmApi.init(JSON.parse(firebaseConfigStr));
+                    const config = JSON.parse(firebaseConfigStr);
+                    fcmApi.init(config);
                 } catch (e) {
-                    console.error("FCM integration failed:", e);
+                    console.error("FCM integration failed (Invalid Config):", e);
                 }
             }
+        } else {
+            // Not logged in, but app.init was called?
+            console.warn("app.init() called but no user session found.");
+            return;
         }
 
         console.log("app.init() called, user:", this.currentUser);
