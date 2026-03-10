@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
+import { idb } from "../core/store.js";
 
 export const fcmApi = {
     app: null,
@@ -26,7 +27,27 @@ export const fcmApi = {
                     window.app.appendMessage(`🔔 **${title}**<br/>${body}`, 'bot', true);
                 }
             });
+
+            // Listen for foreground messages from Service Worker (manual trigger)
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    if (event.data && event.data.type === 'FCM_MESSAGE') {
+                        const payload = event.data.payload;
+                        console.log("Foreground Message received from SW: ", payload);
+                        if (window.app && window.app.appendMessage) {
+                            const title = payload.notification?.title || payload.data?.title || '새로운 알림';
+                            const body = payload.notification?.body || payload.data?.body || '';
+                            window.app.appendMessage(`🔔 **${title}**<br/>${body}`, 'bot', true);
+                        }
+                    }
+                });
+            }
             console.log("Firebase initialized");
+
+            // Save to IndexedDB for Service Worker access
+            idb.set('firebase_config', firebaseConfig).then(() => {
+                console.log("FCM config saved to IndexedDB for background use");
+            });
         } catch (error) {
             console.error("Firebase init failed:", error);
             // Don't alert here to avoid annoying users on every load if they just don't want notifications.

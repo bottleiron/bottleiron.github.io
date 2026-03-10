@@ -101,35 +101,60 @@ self.addEventListener('fetch', event => {
 });
 
 // ==========================================
-// FCM Background Messaging Integrated
+// Web Push Integration (Native FCM Payload Handling)
 // ==========================================
-importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-compat.js');
-importScripts('js/core/idb-helper.js');
 
-async function initFirebase() {
+self.addEventListener('push', function(event) {
+    if (!event.data) return;
+    
     try {
-        const config = await idbHelper.get('firebase_config');
-        if (config) {
-            firebase.initializeApp(config);
-            const messaging = firebase.messaging();
+        const payload = event.data.json();
+        console.log('[sw.js] Received native push event', payload);
 
-            messaging.onBackgroundMessage((payload) => {
-                console.log('[sw.js] Received background message ', payload);
-                const notificationTitle = payload.notification?.title || payload.data?.title || '슈가게부 알림';
-                const notificationOptions = {
-                    body: payload.notification?.body || payload.data?.body || '새로운 업데이트가 있습니다.',
-                    icon: '/icon.svg',
-                    badge: '/icon.svg',
-                    data: payload.data
-                };
-                self.registration.showNotification(notificationTitle, notificationOptions);
-            });
-            console.log("Firebase SW logic integrated in sw.js");
-        }
+        event.waitUntil(
+            clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+                const isFocused = clientList.some(client => client.focused);
+                
+                if (isFocused) {
+                    // App is in foreground, send message to client to show in-app alert
+                    clientList.forEach(client => {
+                        client.postMessage({
+                            type: 'FCM_MESSAGE',
+                            payload: payload
+                        });
+                    });
+                } else {
+                    // App is in background, show system notification
+                    const title = payload.notification?.title || payload.data?.title || '슈가게부 알림';
+                    const options = {
+                        body: payload.notification?.body || payload.data?.body || '새로운 업데이트가 있습니다.',
+                        icon: '/icon.svg',
+                        badge: '/icon.svg',
+                        data: payload.data
+                    };
+                    return self.registration.showNotification(title, options);
+                }
+            })
+        );
     } catch (e) {
-        console.error("Firebase integration in sw.js failed:", e);
+        console.error('Error handling push event', e);
     }
-}
+});
 
-initFirebase();
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+            if (clientList.length > 0) {
+                let client = clientList[0];
+                for (let i = 0; i < clientList.length; i++) {
+                    if (clientList[i].focused) {
+                        client = clientList[i];
+                    }
+                }
+                return client.focus();
+            }
+            return clients.openWindow('/');
+        })
+    );
+});
