@@ -89,12 +89,15 @@ export const uiRenderer = {
         const categoryTotals = {};
         let totalExpense = 0;
         let totalIncome = 0;
+        let totalSavings = 0;
         const prefix = `${year}-${String(month).padStart(2, '0')}`;
 
         allLedgerData.forEach(item => {
             if (item.date && item.date.startsWith(prefix)) {
                 if (item.category === '수입') {
                     totalIncome += Number(item.amount);
+                } else if (item.category === '저축') {
+                    totalSavings += Number(item.amount);
                 } else {
                     const cat = item.category || '기타';
                     categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
@@ -110,14 +113,23 @@ export const uiRenderer = {
         chartContainer.innerHTML = '';
         listContainer.innerHTML = '';
 
-        if (totalExpense === 0 && totalIncome === 0) {
+        if (totalExpense === 0 && totalIncome === 0 && totalSavings === 0) {
             chartContainer.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px 0;">거래 내역이 없습니다.</div>';
         } else {
+            // Income Summary
             if (totalIncome > 0) {
-                listContainer.innerHTML += `<div class="stat-item" style="background:#fef2f2;border-radius:10px;margin-bottom:8px;"><span class="stat-cat" style="color:var(--accent);">총 수입</span><span class="stat-amt" style="color:var(--accent);font-size:16px;">+ ₩ ${totalIncome.toLocaleString()}</span></div>`;
+                listContainer.innerHTML += `<div class="stat-item" style="background:#fef2f2;border-radius:10px;margin-bottom:8px;"><span class="stat-cat" style="color:#ef4444;font-weight:700;">총 수입</span><span class="stat-amt" style="color:#ef4444;font-size:16px;font-weight:700;">+ ₩ ${totalIncome.toLocaleString()}</span></div>`;
             }
+
+            // Savings Summary
+            if (totalSavings > 0) {
+                listContainer.innerHTML += `<div class="stat-item" style="background:#eff6ff;border-radius:10px;margin-bottom:8px;"><span class="stat-cat" style="color:#3b82f6;font-weight:700;">총 저축</span><span class="stat-amt" style="color:#3b82f6;font-size:16px;font-weight:700;">₩ ${totalSavings.toLocaleString()}</span></div>`;
+            }
+
+            // Expense Summary & Details
             if (totalExpense > 0) {
-                listContainer.innerHTML += `<div class="stat-item" style="background:var(--primary-light);border-radius:10px;margin-bottom:4px;"><span class="stat-cat" style="color:var(--primary);">총 지출</span><span class="stat-amt" style="color:var(--primary);font-size:16px;">- ₩ ${totalExpense.toLocaleString()}</span></div>`;
+                listContainer.innerHTML += `<div class="stat-item" style="background:var(--primary-light);border-radius:10px;margin-bottom:12px;"><span class="stat-cat" style="color:var(--primary);font-weight:700;">총 지출</span><span class="stat-amt" style="color:var(--primary);font-size:16px;font-weight:700;">- ₩ ${totalExpense.toLocaleString()}</span></div>`;
+                
                 const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
                 sorted.forEach(([cat, amount]) => {
                     const pct = ((amount / totalExpense) * 100).toFixed(1);
