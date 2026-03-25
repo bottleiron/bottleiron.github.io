@@ -330,59 +330,72 @@ const app = {
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const y = d.getFullYear(), m = d.getMonth() + 1;
             const pfx = `${y}-${String(m).padStart(2, '0')}`;
-            let total = 0;
-            const catTotals = {};
+            let totalExp = 0, totalInc = 0, totalSav = 0;
             this.allLedgerData.forEach(item => {
                 if (item.date && item.date.startsWith(pfx)) {
-                    total += Number(item.amount);
-                    const cat = item.category || '기타';
-                    catTotals[cat] = (catTotals[cat] || 0) + Number(item.amount);
+                    const amt = Number(item.amount);
+                    if (item.category === '수입') totalInc += amt;
+                    else if (item.category === '저축') totalSav += amt;
+                    else totalExp += amt;
                 }
             });
-            mData.push({ label: `${m}월`, total, catTotals, year: y, month: m });
+            mData.push({ label: `${m}월`, totalExp, totalInc, totalSav, year: y, month: m });
         }
         this._trendMonthsData = mData;
-        const maxT = Math.max(...mData.map(m => m.total), 1);
+
+        // Max Y value calculation
+        const maxVal = Math.max(...mData.map(m => Math.max(m.totalExp, m.totalInc, m.totalSav)), 1);
         const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+        
+        // Draw Grid and Axis
         ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
             const gy = pad.top + (cH / 4) * i;
             ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(W - pad.right, gy); ctx.stroke();
             ctx.fillStyle = '#94a3b8'; ctx.font = '10px Outfit, sans-serif'; ctx.textAlign = 'right';
-            ctx.fillText(`${((maxT - (maxT / 4) * i) / 10000).toFixed(0)}만`, pad.left - 8, gy + 4);
+            ctx.fillText(`${((maxVal - (maxVal / 4) * i) / 10000).toFixed(0)}만`, pad.left - 8, gy + 4);
         }
-        const pts = mData.map((m, idx) => ({
+
+        const drawTrendLine = (dataKey, color) => {
+            const pts = mData.map((m, idx) => ({
+                x: pad.left + (cW / Math.max(mData.length - 1, 1)) * idx,
+                y: pad.top + cH - (m[dataKey] / maxVal) * cH
+            }));
+
+            if (pts.length > 1) {
+                // Line
+                ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) {
+                    const cpX = (pts[i - 1].x + pts[i].x) / 2;
+                    ctx.bezierCurveTo(cpX, pts[i - 1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
+                }
+                ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+
+                // Dots
+                pts.forEach(p => {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2); ctx.fillStyle = 'white'; ctx.fill();
+                });
+            }
+        };
+
+        this._trendPoints = mData.map((m, idx) => ({
             x: pad.left + (cW / Math.max(mData.length - 1, 1)) * idx,
-            y: pad.top + cH - (m.total / maxT) * cH,
             data: m
         }));
-        this._trendPoints = pts;
-        if (pts.length > 1) {
-            // Draw Gradient Fill
-            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) {
-                const cpX = (pts[i - 1].x + pts[i].x) / 2;
-                ctx.bezierCurveTo(cpX, pts[i - 1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
-            }
-            ctx.lineTo(pts[pts.length - 1].x, pad.top + cH); ctx.lineTo(pts[0].x, pad.top + cH); ctx.closePath();
-            const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
-            grad.addColorStop(0, 'rgba(99,102,241,0.25)'); grad.addColorStop(1, 'rgba(99,102,241,0.02)');
-            ctx.fillStyle = grad; ctx.fill();
 
-            // Draw Line
-            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) {
-                const cpX = (pts[i - 1].x + pts[i].x) / 2;
-                ctx.bezierCurveTo(cpX, pts[i - 1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
-            }
-            ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2.5; ctx.stroke();
-        }
-        pts.forEach(p => {
-            ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fillStyle = '#6366f1'; ctx.fill();
-            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fillStyle = 'white'; ctx.fill();
+        // Draw three lines with colors: Red(Income), Green(Savings), Blue(Expenses)
+        drawTrendLine('totalInc', '#ef4444'); // Red
+        drawTrendLine('totalSav', '#10b981'); // Green
+        drawTrendLine('totalExp', '#3b82f6'); // Blue
+
+        // X Labels
+        mData.forEach((m, idx) => {
+            const x = pad.left + (cW / Math.max(mData.length - 1, 1)) * idx;
             ctx.fillStyle = '#334155'; ctx.font = '10px Outfit, sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(p.data.label, p.x, H - pad.bottom + 16);
+            ctx.fillText(m.label, x, H - pad.bottom + 16);
         });
+
         canvas.onmousemove = (e) => { const r = canvas.getBoundingClientRect(); this._showTrendTooltip(e.clientX - r.left, e.clientY - r.top, canvas); };
         canvas.onmouseleave = () => { const tt = document.getElementById('trend-tooltip'); if (tt) tt.style.display = 'none'; };
         canvas.ontouchmove = (e) => { e.preventDefault(); const t = e.touches[0], r = canvas.getBoundingClientRect(); this._showTrendTooltip(t.clientX - r.left, t.clientY - r.top, canvas); };
@@ -397,13 +410,26 @@ const app = {
         this._trendPoints.forEach(p => { const d = Math.abs(p.x - mx); if (d < minD) { minD = d; closest = p; } });
         if (!closest || minD > 30) { tt.style.display = 'none'; return; }
         const d = closest.data;
-        let html = `<div class="tt-title">${d.year}년 ${d.month}월</div><div class="tt-total">총 ₩${d.total.toLocaleString()}</div>`;
-        if (d.total > 0) { Object.entries(d.catTotals).sort((a, b) => b[1] - a[1]).forEach(([cat, amt]) => { html += `<div class="tt-row"><span>${cat}</span><span>₩${amt.toLocaleString()}</span></div>`; }); }
+        let html = `
+            <div class="tt-title" style="margin-bottom:8px; font-weight:700;">${d.year}년 ${d.month}월</div>
+            <div class="tt-row" style="display:flex; justify-content:space-between; gap:12px; font-size:12px; margin-bottom:4px;">
+                <span><span style="color:#ef4444; margin-right:4px;">●</span>수입</span>
+                <span style="font-weight:600;">₩${d.totalInc.toLocaleString()}</span>
+            </div>
+            <div class="tt-row" style="display:flex; justify-content:space-between; gap:12px; font-size:12px; margin-bottom:4px;">
+                <span><span style="color:#10b981; margin-right:4px;">●</span>저축</span>
+                <span style="font-weight:600;">₩${d.totalSav.toLocaleString()}</span>
+            </div>
+            <div class="tt-row" style="display:flex; justify-content:space-between; gap:12px; font-size:12px;">
+                <span><span style="color:#3b82f6; margin-right:4px;">●</span>지출</span>
+                <span style="font-weight:600;">₩${d.totalExp.toLocaleString()}</span>
+            </div>
+        `;
         tt.innerHTML = html; tt.style.display = 'block';
         const cW = canvas.parentElement.clientWidth;
         let left = closest.x - 70;
-        if (left < 5) left = 5; if (left + 150 > cW) left = cW - 155;
-        tt.style.left = `${left}px`; tt.style.top = `${Math.max(closest.y - 10, 5)}px`;
+        if (left < 5) left = 5; if (left + 160 > cW) left = cW - 165;
+        tt.style.left = `${left}px`; tt.style.top = `30px`;
     },
 
     // ==========================================
