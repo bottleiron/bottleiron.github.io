@@ -762,12 +762,22 @@ const app = {
             
             if (tossResult) {
                 const now = new Date();
-                const y = now.getFullYear();
-                const m = now.getMonth() + 1;
-                const d = now.getDate();
-                const dateStr = `${y}년 ${m}월 ${d}일`;
+                let year = now.getFullYear();
+                let month = tossResult.month || (now.getMonth() + 1);
+                let day = tossResult.day || now.getDate();
 
-                if (confirm(`오늘(${dateStr}) 날짜가 맞습니까?`)) {
+                // Smart Year Logic: If extracted month/day is in the future (>1 day), assume last year
+                if (tossResult.month && tossResult.day) {
+                    const extractedDateInCurrentYear = new Date(year, month - 1, day);
+                    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                    if (extractedDateInCurrentYear > tomorrow) {
+                        year -= 1;
+                    }
+                }
+
+                const dateStr = `${year}년 ${month}월 ${day}일`;
+
+                if (confirm(`${dateStr} 내역이 맞습니까?`)) {
                     // UI 연동: 모달 띄우기 및 자동 채우기
                     const addPlaceInput = document.getElementById('add-place');
                     const addAmountInput = document.getElementById('add-amount');
@@ -775,7 +785,7 @@ const app = {
                     if (addPlaceInput) addPlaceInput.value = tossResult.shopName;
                     if (addAmountInput) addAmountInput.value = tossResult.amount;
                     
-                    this.openDayModal(y, m, d);
+                    this.openDayModal(year, month, day);
                     this.appendMessage(`💳 결제 내역을 인식했습니다! 아래에서 카테고리를 선택하고 추가 버튼을 눌러주세요.`, 'bot');
                 } else {
                     // 저장 후 달력으로 이동
@@ -786,7 +796,6 @@ const app = {
             } else {
                 this.appendMessage('인식할 수 없는 알림 형식입니다. 토스뱅크 결제 알림을 그대로 붙여넣어 주세요.', 'bot');
             }
-
         } catch (error) {
             console.error(error);
             this.appendMessage(`❌ 오류가 발생했어요: ${error.message}`, 'bot');
@@ -796,26 +805,45 @@ const app = {
     },
 
     parseTossNotification(text) {
-        const lines = text.split('\n');
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
         let amount = 0;
         let shopName = '';
+        let month = null;
+        let day = null;
         
-        for (const line of lines) {
-            if (line.includes('|')) {
-                const parts = line.split('|');
-                
-                const rawAmount = parts[0];
-                amount = parseInt(rawAmount.replace(/[^0-9]/g, ''), 10);
-                
-                let rawShop = parts[1].trim();
-                // Remove balance information (e.g., "잔액 1,234원")
-                shopName = rawShop.split('잔액')[0].trim();
+        // 1. Amount and Shop Name Extraction
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Format A: "24,860원 결제 | (주)우리농산물식자재마트"
+            const delimitedMatch = line.match(/([\d,]+)원\s+결제\s*\|\s*(.+)/);
+            if (delimitedMatch) {
+                amount = parseInt(delimitedMatch[1].replace(/,/g, ''), 10);
+                shopName = delimitedMatch[2].split('잔액')[0].trim();
+                break;
+            }
+            
+            // Format B: "... 23,100원이 출금됐어요."
+            const withdrawalMatch = line.match(/([\d,]+)원이\s+출금됐어요/);
+            if (withdrawalMatch) {
+                amount = parseInt(withdrawalMatch[1].replace(/,/g, ''), 10);
+                // Shop name is on the next line
+                if (i + 1 < lines.length) {
+                    shopName = lines[i + 1].split('잔액')[0].trim();
+                }
                 break;
             }
         }
+
+        // 2. Date Extraction (MM/DD)
+        const dateMatch = text.match(/(\d{1,2})\/(\d{1,2})/);
+        if (dateMatch) {
+            month = parseInt(dateMatch[1], 10);
+            day = parseInt(dateMatch[2], 10);
+        }
         
         if (amount > 0 && shopName) {
-            return { amount, shopName };
+            return { amount, shopName, month, day };
         }
         return null;
     },
