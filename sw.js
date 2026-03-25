@@ -9,7 +9,7 @@ const URLS_TO_CACHE = [
     '/js/auth.js',
     '/js/github-api.js',
     '/js/constants.js',
-    '/js/api/gemini.js',
+
     '/js/core/store.js',
     '/js/core/idb-helper.js',
     '/js/ui/renderer.js',

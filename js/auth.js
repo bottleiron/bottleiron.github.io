@@ -71,13 +71,12 @@ const auth = {
      * Initial Key Setup
      */
     setupKeys() {
-        const gemini = document.getElementById('setup-gemini-key').value.trim();
         const github = document.getElementById('setup-github-pat').value.trim();
         const firebase = document.getElementById('setup-firebase-config').value.trim();
         const pin = document.getElementById('setup-pin').value.trim();
         const errorEl = document.getElementById('setup-error');
 
-        if (!gemini || !github || !pin || !firebase) {
+        if (!github || !pin || !firebase) {
             errorEl.textContent = '모든 항목을 입력해주세요.';
             return;
         }
@@ -100,16 +99,13 @@ const auth = {
 
         try {
             // Encrypt and save to localStorage
-            const encGemini = CryptoJS.AES.encrypt(gemini, pin).toString();
             const encGithub = CryptoJS.AES.encrypt(github, pin).toString();
             const encFirebase = CryptoJS.AES.encrypt(firebase, pin).toString();
 
-            localStorage.setItem('encryptedGemini', encGemini);
             localStorage.setItem('encryptedGithub', encGithub);
             localStorage.setItem('encryptedFirebase', encFirebase);
 
             // Save decrypted to sessionStorage for immediate use
-            sessionStorage.setItem('geminiKey', gemini);
             sessionStorage.setItem('githubPat', github);
             sessionStorage.setItem('firebaseConfig', firebase);
 
@@ -133,25 +129,22 @@ const auth = {
         }
 
         try {
-            let importG, importH, importF;
+            let importH, importF;
 
             // 1. JSON 형식인지 확인 (Unified Settings Code)
             if (input.startsWith('{')) {
                 const data = JSON.parse(input);
-                importG = data.g;
                 importH = data.h;
                 importF = data.f;
             } 
             // 2. URL 형식인지 확인
             else {
                 const url = new URL(input);
-                importG = url.searchParams.get('g')?.trim().replace(/\/+$/, '');
-                importH = url.searchParams.get('h')?.trim().replace(/\/+$/, '');
-                importF = url.searchParams.get('f')?.trim().replace(/\/+$/, '');
+                importH = url.searchParams.get('h')?.trim().replace(/\/\+$/, '');
+                importF = url.searchParams.get('f')?.trim().replace(/\/\+$/, '');
             }
 
-            if (importG && importH && importF) {
-                localStorage.setItem('encryptedGemini', importG);
+            if (importH && importF) {
                 localStorage.setItem('encryptedGithub', importH);
                 localStorage.setItem('encryptedFirebase', importF);
                 alert(`설정이 로드되었습니다. 암호화할 때 사용하신 ${this.maxPinLength}자리 PIN을 입력하여 로그인을 완료하세요.`);
@@ -172,26 +165,23 @@ const auth = {
      * 복호화 시도 및 로그인 처리
      */
     attemptLogin() {
-        const encGemini = localStorage.getItem('encryptedGemini');
         const encGithub = localStorage.getItem('encryptedGithub');
         const encFirebase = localStorage.getItem('encryptedFirebase');
 
-        if (!encGemini || !encGithub || !encFirebase) {
+        if (!encGithub || !encFirebase) {
             this.showError("등록된 API 키가 없습니다. 앱 데이터 초기화 후 다시 설정하세요.");
             return;
         }
 
         try {
             // 복호화 시도
-            const decGeminiSrc = CryptoJS.AES.decrypt(encGemini, this.currentPin);
             const decGithubSrc = CryptoJS.AES.decrypt(encGithub, this.currentPin);
             const decFirebaseSrc = CryptoJS.AES.decrypt(encFirebase, this.currentPin);
 
-            const decryptedGemini = decGeminiSrc.toString(CryptoJS.enc.Utf8);
             const decryptedGithub = decGithubSrc.toString(CryptoJS.enc.Utf8);
             const decryptedFirebase = decFirebaseSrc.toString(CryptoJS.enc.Utf8);
 
-            if (!decryptedGemini || !decryptedGithub || !decryptedFirebase) {
+            if (!decryptedGithub || !decryptedFirebase) {
                 console.warn("Decryption failed for one or more keys. Possibly wrong PIN or truncated data.");
                 throw new Error("Invalid PIN or Corrupted Data");
             }
@@ -210,7 +200,6 @@ const auth = {
                 idb.set('firebase_config', firebaseObj).catch(console.error);
             }
 
-            sessionStorage.setItem("geminiKey", decryptedGemini);
             sessionStorage.setItem("githubPat", decryptedGithub);
             sessionStorage.setItem("firebaseConfig", decryptedFirebase);
 
@@ -223,7 +212,6 @@ const auth = {
     },
 
     logout() {
-        sessionStorage.removeItem("geminiKey");
         sessionStorage.removeItem("githubPat");
         sessionStorage.removeItem("firebaseConfig");
         sessionStorage.removeItem("currentUser");
@@ -233,7 +221,6 @@ const auth = {
 
     resetApp() {
         if (confirm("저장된 API 키와 PIN 설정이 모두 삭제됩니다. 계속하시겠습니까?")) {
-            localStorage.removeItem('encryptedGemini');
             localStorage.removeItem('encryptedGithub');
             localStorage.removeItem('encryptedFirebase');
             sessionStorage.clear();
@@ -251,16 +238,15 @@ const auth = {
     },
 
     exportSettings() {
-        const encG = localStorage.getItem('encryptedGemini');
         const encH = localStorage.getItem('encryptedGithub');
         const encF = localStorage.getItem('encryptedFirebase');
         
-        if (!encG || !encH || !encF) {
+        if (!encH || !encF) {
             alert("저장된 키가 없습니다. 먼저 초기 설정을 완료해주세요.");
             return;
         }
 
-        const config = { g: encG, h: encH, f: encF };
+        const config = { h: encH, f: encF };
         const configStr = JSON.stringify(config);
 
         navigator.clipboard.writeText(configStr).then(() => {
@@ -272,16 +258,15 @@ const auth = {
     },
 
     copyShareUrl() {
-        const encG = localStorage.getItem('encryptedGemini');
         const encH = localStorage.getItem('encryptedGithub');
         const encF = localStorage.getItem('encryptedFirebase');
-        if (!encG || !encH || !encF) {
+        if (!encH || !encF) {
             alert("저장된 키가 없습니다. 먼저 초기 설정을 완료해주세요.");
             return;
         }
 
         // Construct URL
-        const shareUrl = `${window.location.origin}${window.location.pathname}?g=${encodeURIComponent(encG)}&h=${encodeURIComponent(encH)}&f=${encodeURIComponent(encF)}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}?h=${encodeURIComponent(encH)}&f=${encodeURIComponent(encF)}`;
 
         // Copy to clipboard
         navigator.clipboard.writeText(shareUrl).then(() => {
@@ -300,18 +285,15 @@ const auth = {
     // 초기 실행 시 이미 세션이 있으면 통과
     checkSession() {
         const urlParams = new URLSearchParams(window.location.search);
-        let importG = urlParams.get('g');
         let importH = urlParams.get('h');
         let importF = urlParams.get('f');
 
         // 처리: URL 공유 시 마지막에 /가 붙는 경우나 공백 제거
-        if (importG) importG = importG.trim().replace(/\/+$/, '');
-        if (importH) importH = importH.trim().replace(/\/+$/, '');
-        if (importF) importF = importF.trim().replace(/\/+$/, '');
+        if (importH) importH = importH.trim().replace(/\/\+$/, '');
+        if (importF) importF = importF.trim().replace(/\/\+$/, '');
 
-        if (importG && importH && importF) {
+        if (importH && importF) {
             if (confirm("공유받은 API 키 설정을 이 기기에 적용할까요?")) {
-                localStorage.setItem('encryptedGemini', importG);
                 localStorage.setItem('encryptedGithub', importH);
                 localStorage.setItem('encryptedFirebase', importF);
                 alert(`키가 임시 저장되었습니다. 암호화할 때 사용하신 ${this.maxPinLength}자리 PIN을 입력하여 로그인을 완료해주세요.\n(주의: 완료 후 주소창의 긴 URL은 지워주세요!)`);
@@ -331,7 +313,7 @@ const auth = {
 
         const firebaseConfig = sessionStorage.getItem("firebaseConfig");
         
-        if (sessionStorage.getItem("geminiKey") && sessionStorage.getItem("githubPat") && firebaseConfig) {
+        if (sessionStorage.getItem("githubPat") && firebaseConfig) {
             // Validate JSON before proceeding
             try {
                 JSON.parse(firebaseConfig);

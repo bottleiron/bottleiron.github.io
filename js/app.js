@@ -9,7 +9,6 @@ import { GithubApi } from "./github-api.js";
 import { Solar, Lunar } from "lunar-javascript";
 import { CATEGORIES, ANNIVERSARIES } from "./constants.js";
 import { idb } from "./core/store.js";
-import { geminiApi } from "./api/gemini.js";
 import { uiRenderer } from "./ui/renderer.js";
 import { fcmApi } from "./api/fcm.js";
 
@@ -19,7 +18,6 @@ const GITHUB_REPO = 'my-ledger-data';
 
 
 const app = {
-    geminiKey: "",
     githubPat: "",
     githubApi: null,
     chatWindow: null,
@@ -35,17 +33,8 @@ const app = {
     elements: {},
 
     init() {
-        this.geminiKey = sessionStorage.getItem('geminiKey');
         this.githubPat = sessionStorage.getItem('githubPat');
         this.currentUser = sessionStorage.getItem('currentUser') || '사용자';
-
-        if (this.geminiKey) {
-            try {
-                geminiApi.init(this.geminiKey);
-            } catch (e) {
-                console.warn(e);
-            }
-        }
 
         if (this.githubPat && !this.githubApi) {
             this.githubApi = new GithubApi(GITHUB_OWNER, GITHUB_REPO, this.githubPat);
@@ -230,11 +219,14 @@ const app = {
 
         let totalExpense = 0;
         let totalIncome = 0;
+        let totalSavings = 0;
 
         this.allLedgerData.forEach(item => {
             if (item.date && item.date.startsWith(prefix)) {
                 if (item.category === '수입') {
                     totalIncome += Number(item.amount);
+                } else if (item.category === '저축') {
+                    totalSavings += Number(item.amount);
                 } else {
                     totalExpense += Number(item.amount);
                 }
@@ -248,6 +240,9 @@ const app = {
 
         const incomeEl = document.getElementById('total-incomeAmount');
         if (incomeEl) incomeEl.textContent = `₩ ${totalIncome.toLocaleString()}`;
+
+        const savingsEl = document.getElementById('total-savingsAmount');
+        if (savingsEl) savingsEl.textContent = `이달의 저축 ₩${totalSavings.toLocaleString()}`;
     },
 
     changeMonth(delta) {
@@ -723,25 +718,21 @@ const app = {
         this.showTyping();
 
         try {
-            // 2. Determine Intent via Gemini
-            const today = new Date().toISOString().split('T')[0];
-            const intentRespText = await geminiApi.askGeminiIntent(text, today, this.currentUser);
-            const intentResp = JSON.parse(intentRespText);
-
-            if (intentResp.intent === "ADD") {
-                await this.processAddExpense(intentResp.data);
-            } else if (intentResp.intent === "ADD_FIXED") {
-                await this.processAddFixed(intentResp.data);
-            } else if (intentResp.intent === "DELETE") {
-                await this.processDeleteExpense(text);
-            } else if (intentResp.intent === "EDIT") {
-                await this.processEditExpense(text);
-            } else if (intentResp.intent === "INQUIRY_SUMMARY") {
-                await this.processInquirySummary(text, intentResp.data);
-            } else if (intentResp.intent === "ANALYSIS") {
-                await this.processAnalysis(text, intentResp.data);
+            // 2. Parse Toss Notification
+            const tossResult = this.parseTossNotification(text);
+            
+            if (tossResult) {
+                const todayStr = this.currentDate.toISOString().split('T')[0];
+                const expenseData = {
+                    date: this.selectedDate || todayStr,
+                    amount: tossResult.amount,
+                    place: tossResult.shopName,
+                    payer: this.currentUser,
+                    category: '기타'
+                };
+                await this.processAddExpense(expenseData);
             } else {
-                await this.processInquiry(text, intentResp.data);
+                this.appendMessage('인식할 수 없는 알림 형식입니다. 토스뱅크 결제 알림을 그대로 붙여넣어 주세요.', 'bot');
             }
 
         } catch (error) {
@@ -752,69 +743,32 @@ const app = {
         }
     },
 
+    parseTossNotification(text) {
+        const lines = text.split('\\n');
+        let amount = 0;
+        let shopName = '';
+        
+        for (const line of lines) {
+            if (line.includes('|')) {
+                const parts = line.split('|');
+                
+                const rawAmount = parts[0];
+                amount = parseInt(rawAmount.replace(/[^0-9]/g, ''), 10);
+                
+                shopName = parts[1].trim();
+                break;
+            }
+        }
+        
+        if (amount > 0 && shopName) {
+            return { amount, shopName };
+        }
+        return null;
+    },
+
     // ==========================================
     // GEMINI CALLS
     // ==========================================
-
-    /**
-     * Prompt Gemini to determine what the user wants to do.
-     * Requesting strictly JSON output.
-     */
-    // This function is now handled by geminiApi.askGeminiIntent
-    // async askGeminiIntent(userText) {
-    //     const today = new Date().toISOString().split('T')[0];
-    //     const prompt = `
-    // 당신은 가계부 작성 AI 비서입니다.
-    // 오늘 날짜는 ${today} 입니다. 날짜가 '오늘', '어제' 등으로 오면 이를 계산하세요.
-    // 현재 사용자는 "${this.currentUser}" 입니다. 별도로 결제자를 지정하지 않으면 결제자는 "${this.currentUser}"(으)로 설정하세요.
-    // 사용자의 입력을 분석하여 다음 의도 중 하나로 분류하고, 반드시 JSON 형식으로만 응답해야 합니다 (마크다운 백틱 제외).
-
-    // 1. 지출 내역 추가 (intent: "ADD")
-    // 사용자가 돈을 썼다는 내용일 경우, 아래 구조로 데이터를 추출하세요 (금액은 숫자만). 카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 기타 중에서 가장 적합한 것을 고르세요.
-    // {"intent": "ADD", "data": {"date": "YYYY-MM-DD", "amount": 10000, "place": "상호명", "payer": "결제자", "category": "분류"}}
-
-    // 2. 고정비 등록 (intent: "ADD_FIXED")
-    // 사용자가 "매달", "매월", "고정비", "정기", "자동이체" 등 반복적인 지출 항목을 등록하려는 경우. 매달 몇 일에 납부하는지(pay_day), 항목명(name), 금액(amount), 카테고리(category)를 추출하세요.
-    // {"intent": "ADD_FIXED", "data": {"name": "항목명", "pay_day": 1, "amount": 150000, "category": "분류"}}
-
-    // 3. 지출 내역 삭제 (intent: "DELETE")
-    // 사용자가 기존 가계부 내역에서 특정 항목을 삭제하거나 취소해달라고 요청하는 경우.
-    // {"intent": "DELETE", "data": null}
-
-    // 4. 지출 내역 수정 (intent: "EDIT")
-    // 사용자가 기존에 입력한 가계부 내역의 금액, 상호명, 카테고리 등을 수정하거나 변경해달라고 요청하는 경우. 예: "어제 스타벅스 5000원 금액 4500원으로 바꿔줘", "2월 25일 관리비 카테고리 공과금으로 수정해줘"
-    // {"intent": "EDIT", "data": null}
-
-    // 5. 특정 내역 조회 및 질문 (intent: "INQUIRY")
-    // 사용자가 과거 내역에 대해 "구체적인 리스트나 항목"을 질문하는 경우. 이때 사용자 질문에서 "년도(YYYY)", "월(MM)", "카테고리(category)" 등 필터링할 조건이 있다면 뽑아내주세요.
-    // 없으면 null로 처리하세요. (예: "작년 식비 리스트 알려줘" -> 올해가 2026년이므로 date_prefix: "2025", category: "식비")
-    // {"intent": "INQUIRY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
-
-    // 6. 전체 통계/합산 요구 (intent: "INQUIRY_SUMMARY")
-    // 사용자가 "1년치 총 식비 얼마야?", "이번 달 총 지출은 얼마야?" 등 전체 합산 금액이나 거시적인 통계 결과를 묻는 경우.
-    // {"intent": "INQUIRY_SUMMARY", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
-
-    // 7. 지출 분석 및 개선 조언 (intent: "ANALYSIS")
-    // 사용자가 "내 지출 분석해줘", "어떻게 하면 돈을 아낄까?", "이번 달 지출 패턴 어때?" 등 통계를 넘어선 분석 및 조언을 구하는 경우.
-    // {"intent": "ANALYSIS", "data": {"date_prefix": "YYYY-MM 혹은 YYYY", "category": "카테고리명"}}
-
-    // 사용자 입력: "${userText}"
-    // `;
-    //     return await this.fetchGemini(prompt);
-    // },
-
-    /**
-     * RAG를 통해 가계부 내역 기반으로 응답 생성.
-     */
-    // This function is now handled by geminiApi.askGeminiRAG
-    // async askGeminiRAG(userText, ledgerStr) {
-    //     const prompt = `
-    // 당신은 가계부 상담 AI입니다.
-    // 아래의 전체 가계부 내역(JSON 리스트)을 바탕으로 사용자의 질문에 친절하고 정확하게 답변해주세요.
-    // 응답은 일반 텍스트 대신 깔끔하고 세련된 HTML 템플릿 구조를 활용해 주세요.
-    // * 중요: <html>, <body> 태그는 제외하고 내부 HTML만 작성.
-    // * 중요표시: 핵심 금액이나 단어는 <b style="color:var(--primary);">강조</b>처리.
-    // * 리스트/표: 반복되는 내역은 가독성 좋은 <ul><li> 혹은 <table>을 사용하세요 (인라인 CSS 사용 가능, border-collapse, padding 등).
 
     // 가계부 내역:
     // ${ledgerStr}
@@ -1199,297 +1153,7 @@ const app = {
 
         // Success message
         const formatedAmt = new Intl.NumberFormat('ko-KR').format(expenseData.amount);
-        this.appendMessage(`완료! 💸\n${expenseData.date}\n${expenseData.place}에서 ${formatedAmt}원 지출로 장부 모음에 올려두었어요. (동기화 버튼을 눌러 확정해주세요)`, 'bot');
-    },
-
-    /**
-     * Delete expense locally
-     */
-    async processDeleteExpense(userText) {
-        if (this.allLedgerData.length === 0) {
-            this.appendMessage('가계부가 비어있어 삭제할 내용이 없습니다.', 'bot');
-            return;
-        }
-
-        const prompt = `
-아래는 현재 가계부 내역(JSON 배열)의 최근 50건입니다.
-사용자는 이 중에서 특정 지출 항목을 삭제해달라고 요청했습니다.
-요청에 해당하는 항목의 **id (문자열)** 값을 찾아 JSON 배열 형식으로만 출력하세요. (예: ["id1", "id2"] 혹은 일치하는게 없으면 [])
-부연 설명이나 마크다운 문법 없이 오직 배열만 출력해야 합니다.
-
-사용자 요청: "${userText}"
-현재 가계부 내역 (일부):
-${JSON.stringify(this.allLedgerData.slice(0, 50))}
-`;
-        const idsStr = await geminiApi.fetchGemini(prompt);
-        let idsToDelete = [];
-        try {
-            idsToDelete = JSON.parse(idsStr);
-        } catch (e) {
-            throw new Error("AI가 삭제 대상을 올바르게 파악하지 못했습니다.");
-        }
-
-        if (!Array.isArray(idsToDelete) || idsToDelete.length === 0) {
-            this.appendMessage('해당하는 지출 내역을 가계부에서 찾지 못했어요. (정확한 금액이나 식당을 알려주세요)', 'bot');
-            return;
-        }
-
-        let deletedCount = 0;
-
-        for (let targetId of idsToDelete) {
-            // Find the original item from allLedgerData to get its date
-            const originalItem = this.allLedgerData.find(item => item.id === targetId);
-            if (originalItem) {
-                // Add delete action to queue
-                this.syncQueue.push({
-                    id: targetId,
-                    date: originalItem.date,
-                    _action: 'delete',
-                    timestamp: Date.now()
-                });
-                deletedCount++;
-            }
-        }
-
-        if (deletedCount === 0) {
-            this.appendMessage('해당하는 지출 내역을 찾지 못했어요.', 'bot');
-            return;
-        }
-
-        this.saveSyncQueue();
-        this.mergeQueueToLedger();
-
-        // Refresh Current View Only if needed (but doing it safely is always good)
-        this.updateDashboard();
-        this.renderCalendar();
-        this.renderStats();
-
-        this.appendMessage(`요청하신 지출 내역 ${deletedCount}건 삭제를 예약했습니다. 🗑️ (동기화 버튼을 눌러 확정해주세요)`, 'bot');
-    },
-
-    /**
-     * Edit expense via chat using Gemini to identify target and changes
-     */
-    async processEditExpense(userText) {
-        if (this.allLedgerData.length === 0) {
-            this.appendMessage('가계부가 비어있어 수정할 내용이 없습니다.', 'bot');
-            return;
-        }
-
-        const prompt = `
-아래는 현재 가계부 내역(JSON 배열)의 최근 50건입니다.
-사용자는 이 중에서 특정 지출 항목을 수정해달라고 요청했습니다.
-요청에 해당하는 항목의 **id**를 찾고, 수정할 필드와 새 값을 아래 JSON 형식으로만 출력하세요.
-카테고리는 식비, 교통비, 이자, 관리비, 통신비, 공과금, 보험, 문화생활, 모임, 쇼핑, 그리시유, 경조사비, 저축, 기타 중에서 골라주세요.
-부연 설명이나 마크다운 문법 없이 오직 JSON만 출력해야 합니다.
-
-일치하는 항목이 없으면: {"id": null}
-일치하는 항목이 있으면: {"id": "대상id", "changes": {"변경할필드": "새값"}}
-changes에 들어갈 수 있는 필드: place(상호명), amount(금액, 숫자), category(카테고리)
-
-사용자 요청: "${userText}"
-현재 가계부 내역 (일부):
-${JSON.stringify(this.allLedgerData.slice(0, 50))}
-`;
-        const resultStr = await geminiApi.fetchGemini(prompt);
-        let editResult;
-        try {
-            editResult = JSON.parse(resultStr);
-        } catch (e) {
-            throw new Error("AI가 수정 대상을 올바르게 파악하지 못했습니다.");
-        }
-
-        if (!editResult.id) {
-            this.appendMessage('해당하는 지출 내역을 가계부에서 찾지 못했어요. (날짜, 금액, 상호명을 정확히 알려주세요)', 'bot');
-            return;
-        }
-
-        const originalItem = this.allLedgerData.find(item => item.id === editResult.id);
-        if (!originalItem) {
-            this.appendMessage('해당하는 지출 내역을 찾지 못했어요.', 'bot');
-            return;
-        }
-
-        // Apply changes
-        const editedItem = { ...originalItem };
-        const changes = editResult.changes || {};
-        let changeDesc = [];
-
-        if (changes.place) {
-            changeDesc.push(`상호명: ${originalItem.place} → ${changes.place}`);
-            editedItem.place = changes.place;
-        }
-        if (changes.amount !== undefined) {
-            const newAmt = Number(changes.amount);
-            changeDesc.push(`금액: ${new Intl.NumberFormat('ko-KR').format(originalItem.amount)}원 → ${new Intl.NumberFormat('ko-KR').format(newAmt)}원`);
-            editedItem.amount = newAmt;
-        }
-        if (changes.category) {
-            changeDesc.push(`카테고리: ${originalItem.category || '기타'} → ${changes.category}`);
-            editedItem.category = changes.category;
-        }
-
-        if (changeDesc.length === 0) {
-            this.appendMessage('수정할 내용을 파악하지 못했어요. 다시 말씀해 주세요.', 'bot');
-            return;
-        }
-
-        editedItem._action = 'add'; // same id = overwrite
-        editedItem.timestamp = Date.now();
-
-        this.syncQueue.push(editedItem);
-        this.saveSyncQueue();
-        this.mergeQueueToLedger();
-
-        this.updateDashboard();
-        this.renderCalendar();
-        this.renderStats();
-
-        this.appendMessage(`✏️ 수정 완료!\n${changeDesc.join('\n')}\n(동기화 버튼을 눌러 확정해주세요)`, 'bot');
-    },
-
-    /**
-     * Convert JSON array to lightweight CSV string to save LLM tokens.
-     */
-    convertToCSV(dataArray) {
-        if (!dataArray || dataArray.length === 0) return "No Data";
-        // Extract essential keys only
-        const header = "date,amount,category,place,payer";
-        const rows = dataArray.map(item => {
-            return `${item.date},${item.amount},${item.category || ''},"${(item.place || '').replace(/"/g, '""')}",${item.payer || ''}`;
-        });
-        return [header, ...rows].join('\n');
-    },
-
-    /**
-     * Analyze and respond based on existing ledger contents (SMART RAG / INQUIRY)
-     */
-    async processInquiry(userText, filterData = null) {
-        let targetData = this.allLedgerData;
-
-        // 1. Pre-filter data to save LLM tokens and cost
-        if (filterData) {
-            targetData = targetData.filter(item => {
-                let match = true;
-                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
-                if (filterData.category && item.category !== filterData.category) match = false;
-                return match;
-            });
-        }
-
-        if (targetData.length > 300) {
-            targetData = targetData.slice(0, 300);
-            this.appendMessage('⚠️ 데이터가 너무 많아 최근 300건만 분석합니다.', 'bot');
-        }
-
-        // 2. Compress payload via CSV
-        let ledgerCsvStr = this.convertToCSV(targetData);
-
-        // 3. Send context + question to Gemini
-        const aiAnswerHtml = await geminiApi.askGeminiRAG(userText, ledgerCsvStr);
-        this.appendMessage(aiAnswerHtml, 'bot', true);
-    },
-
-    /**
-     * Process summary/aggregation intent using JS reduce.
-     */
-    async processInquirySummary(userText, filterData = null) {
-        let targetData = this.allLedgerData;
-
-        if (filterData) {
-            targetData = targetData.filter(item => {
-                let match = true;
-                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
-                if (filterData.category && item.category !== filterData.category) match = false;
-                return match;
-            });
-        }
-
-        if (targetData.length === 0) {
-            this.appendMessage('해당 조건에 맞는 지출 내역이 없습니다.', 'bot');
-            return;
-        }
-
-        // JS Local Reduce to create lightweight summary
-        const totalAmount = targetData.reduce((sum, item) => sum + Number(item.amount), 0);
-
-        // Group by category if user wants detailed breakdown, but simple total is enough for LLM to elaborate
-        const categorySummary = targetData.reduce((acc, item) => {
-            const cat = item.category || '기타';
-            acc[cat] = (acc[cat] || 0) + Number(item.amount);
-            return acc;
-        }, {});
-
-        const summaryObj = {
-            query_filter: filterData,
-            total_items_count: targetData.length,
-            total_amount: totalAmount,
-            by_category: categorySummary
-        };
-
-        const summaryJsonStr = JSON.stringify(summaryObj);
-
-        const prompt = `
-당신은 가계부 상담 AI입니다.
-사용자가 통계/합산 정보를 요구하여 시스템 내에서 자체적으로 금액을 합산(Reduce)한 결과표를 드립니다.
-아래의 요약된 시스템 자체 계산 결과를 바탕으로 사용자에게 자연스럽고 친절하게 안내해 주세요.
-결과는 가독성이 높은 HTML 요소를 활용하세요 (표, 리스트, 강조 색상 등).
-* 핵심 정보 강조 (예: <span style="font-size:16px; font-weight:bold; color:var(--accent);">금액</span>)
-
-시스템 합산 요약 결과:
-${summaryJsonStr}
-
-사용자 질문: "${userText}"
-        `;
-        const aiAnswerHtml = await geminiApi.fetchGemini(prompt);
-        this.appendMessage(aiAnswerHtml, 'bot', true);
-    },
-
-    /**
-     * Process deep analysis & feedback (SMART RAG for advice)
-     */
-    async processAnalysis(userText, filterData = null) {
-        let targetData = this.allLedgerData;
-
-        if (filterData) {
-            targetData = targetData.filter(item => {
-                let match = true;
-                if (filterData.date_prefix && !item.date.startsWith(filterData.date_prefix)) match = false;
-                if (filterData.category && item.category !== filterData.category) match = false;
-                return match;
-            });
-        }
-
-        if (targetData.length === 0) {
-            this.appendMessage('분석할 지출 내역이 부족합니다.', 'bot');
-            return;
-        }
-
-        // Limit data to prevent token explosion
-        if (targetData.length > 500) {
-            targetData = targetData.slice(0, 500);
-            this.appendMessage('⚠️ 분석 대상 데이터가 많아 최근 500건을 기준으로 분석합니다.', 'bot', true);
-        }
-
-        const ledgerCsvStr = this.convertToCSV(targetData);
-
-        const prompt = `
-당신은 똑똑하고 냉철한(하지만 친절한) 재무 상담사 AI입니다.
-아래 가계부 내역 데이터를 분석하여, 사용자의 지출 패턴, 과소비 여부, 그리고 개선 방향(절약 팁)을 브리핑해 주세요.
-응답 형식은 깔끔한 HTML이어야 하며, <html> <body> 태그는 제외하세요.
-* 요약 섹션 추가
-* 눈에 띄게 큰 금액(카테고리) 강조
-* 구체적인 액션 아이템(개선 방안) 제시
-* 이모지 적극 활용
-* 숫자는 보기 쉽게 천 단위 콤마 표기 (예: 1,000,000)
-
-가계부 내역:
-${ledgerCsvStr}
-
-사용자 요청: "${userText}"
-`;
-        const aiAnswerHtml = await geminiApi.fetchGemini(prompt);
-        this.appendMessage(aiAnswerHtml, 'bot', true);
+        this.appendMessage(`완료! 💸\\n${expenseData.date}\\n${expenseData.place}에서 ${formatedAmt}원 지출로 장부 모음에 올려두었어요. (동기화 버튼을 눌러 확정해주세요)`, 'bot');
     },
 
 
