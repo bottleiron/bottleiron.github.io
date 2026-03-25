@@ -28,6 +28,7 @@ const app = {
     fixedExpenses: [], // Contains monthly fixed expenses rules
     syncQueue: [], // Local unsynced changes
     selectedDate: null, // For modal
+    pendingTossData: null, // For Toss parsing flow
     currentUser: "사용자",
 
     elements: {},
@@ -414,6 +415,18 @@ const app = {
         const titleLabel = document.getElementById('modal-date-title');
         if (titleLabel) titleLabel.textContent = `${year}년 ${month}월 ${day}일`;
 
+        // If there's pending data from Toss notification, pre-fill it
+        if (this.pendingTossData) {
+            const addPlaceInput = document.getElementById('add-place');
+            const addAmountInput = document.getElementById('add-amount');
+            
+            if (addPlaceInput) addPlaceInput.value = this.pendingTossData.shopName;
+            if (addAmountInput) addAmountInput.value = this.pendingTossData.amount;
+            
+            // Clear used data
+            this.pendingTossData = null;
+        }
+
         this.renderModalExpenses();
 
         const modal = document.getElementById('day-modal');
@@ -722,22 +735,28 @@ const app = {
             const tossResult = this.parseTossNotification(text);
             
             if (tossResult) {
-                // UI 연동: 모달 띄우기 및 자동 채우기
-                const addPlaceInput = document.getElementById('add-place');
-                const addAmountInput = document.getElementById('add-amount');
-                
-                if (addPlaceInput) addPlaceInput.value = tossResult.shopName;
-                if (addAmountInput) addAmountInput.value = tossResult.amount;
-                
-                // 오늘 날짜로 모달 열기 (또는 이미 선택된 날짜)
                 const now = new Date();
                 const y = now.getFullYear();
                 const m = now.getMonth() + 1;
                 const d = now.getDate();
-                
-                this.openDayModal(y, m, d);
-                
-                this.appendMessage(`💳 결제 내역을 인식했습니다! 아래 입력창에서 카테고리를 선택하고 추가 버튼을 눌러주세요.`, 'bot');
+                const dateStr = `${y}년 ${m}월 ${d}일`;
+
+                if (confirm(`오늘(${dateStr}) 날짜가 맞습니까?`)) {
+                    // UI 연동: 모달 띄우기 및 자동 채우기
+                    const addPlaceInput = document.getElementById('add-place');
+                    const addAmountInput = document.getElementById('add-amount');
+                    
+                    if (addPlaceInput) addPlaceInput.value = tossResult.shopName;
+                    if (addAmountInput) addAmountInput.value = tossResult.amount;
+                    
+                    this.openDayModal(y, m, d);
+                    this.appendMessage(`💳 결제 내역을 인식했습니다! 아래에서 카테고리를 선택하고 추가 버튼을 눌러주세요.`, 'bot');
+                } else {
+                    // 저장 후 달력으로 이동
+                    this.pendingTossData = tossResult;
+                    this.switchView('calendar');
+                    this.appendMessage(`🗓️ 달력에서 결제하신 날짜를 선택해주세요. 자동으로 내역이 채워집니다.`, 'bot');
+                }
             } else {
                 this.appendMessage('인식할 수 없는 알림 형식입니다. 토스뱅크 결제 알림을 그대로 붙여넣어 주세요.', 'bot');
             }
