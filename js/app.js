@@ -722,15 +722,22 @@ const app = {
             const tossResult = this.parseTossNotification(text);
             
             if (tossResult) {
-                const todayStr = this.currentDate.toISOString().split('T')[0];
-                const expenseData = {
-                    date: this.selectedDate || todayStr,
-                    amount: tossResult.amount,
-                    place: tossResult.shopName,
-                    payer: this.currentUser,
-                    category: '기타'
-                };
-                await this.processAddExpense(expenseData);
+                // UI 연동: 모달 띄우기 및 자동 채우기
+                const addPlaceInput = document.getElementById('add-place');
+                const addAmountInput = document.getElementById('add-amount');
+                
+                if (addPlaceInput) addPlaceInput.value = tossResult.shopName;
+                if (addAmountInput) addAmountInput.value = tossResult.amount;
+                
+                // 오늘 날짜로 모달 열기 (또는 이미 선택된 날짜)
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = now.getMonth() + 1;
+                const d = now.getDate();
+                
+                this.openDayModal(y, m, d);
+                
+                this.appendMessage(`💳 결제 내역을 인식했습니다! 아래 입력창에서 카테고리를 선택하고 추가 버튼을 눌러주세요.`, 'bot');
             } else {
                 this.appendMessage('인식할 수 없는 알림 형식입니다. 토스뱅크 결제 알림을 그대로 붙여넣어 주세요.', 'bot');
             }
@@ -744,7 +751,7 @@ const app = {
     },
 
     parseTossNotification(text) {
-        const lines = text.split('\\n');
+        const lines = text.split('\n');
         let amount = 0;
         let shopName = '';
         
@@ -755,7 +762,9 @@ const app = {
                 const rawAmount = parts[0];
                 amount = parseInt(rawAmount.replace(/[^0-9]/g, ''), 10);
                 
-                shopName = parts[1].trim();
+                let rawShop = parts[1].trim();
+                // Remove balance information (e.g., "잔액 1,234원")
+                shopName = rawShop.split('잔액')[0].trim();
                 break;
             }
         }
