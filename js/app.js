@@ -805,43 +805,50 @@ const app = {
     },
 
     parseTossNotification(text) {
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-        let amount = 0;
-        let shopName = '';
-        let month = null;
-        let day = null;
-        
-        // 1. Amount and Shop Name Extraction
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // Format A: "24,860원 결제 | (주)우리농산물식자재마트"
-            const delimitedMatch = line.match(/([\d,]+)원\s+결제\s*\|\s*(.+)/);
-            if (delimitedMatch) {
-                amount = parseInt(delimitedMatch[1].replace(/,/g, ''), 10);
-                shopName = delimitedMatch[2].split('잔액')[0].trim();
-                break;
-            }
-            
-            // Format B: "... 23,100원이 출금됐어요."
-            const withdrawalMatch = line.match(/([\d,]+)원이\s+출금됐어요/);
-            if (withdrawalMatch) {
-                amount = parseInt(withdrawalMatch[1].replace(/,/g, ''), 10);
-                // Shop name is on the next line
-                if (i + 1 < lines.length) {
-                    shopName = lines[i + 1].split('잔액')[0].trim();
-                }
-                break;
-            }
-        }
+        if (!text) return null;
 
-        // 2. Date Extraction (MM/DD)
-        const dateMatch = text.match(/(\d{1,2})\/(\d{1,2})/);
+        // 1. Normalize: Replace newlines and multiple spaces with a single space
+        const cleanText = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        // 2. Extract Amount
+        const amountMatch = cleanText.match(/([\d,]+)원/);
+        if (!amountMatch) return null;
+        const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
+
+        // 3. Extract Date (MM/DD)
+        let month = null, day = null;
+        const dateMatch = cleanText.match(/(\d{1,2})\/(\d{1,2})/);
         if (dateMatch) {
             month = parseInt(dateMatch[1], 10);
             day = parseInt(dateMatch[2], 10);
         }
-        
+
+        // 4. Extract Shop Name
+        let shopName = '';
+        if (cleanText.includes('|')) {
+            // Format A: Standard delimited format
+            shopName = cleanText.split('|')[1].split('잔액')[0].trim();
+        } else if (cleanText.includes('출금됐어요')) {
+            // Format B (Meeting/Withdrawal): Multi-line or Single-line
+            // Extract the part following the core withdrawal phrase
+            const afterWithdrawArr = cleanText.split('출금됐어요');
+            if (afterWithdrawArr.length > 1) {
+                let afterWithdraw = afterWithdrawArr[1].trim();
+                
+                // Remove junk suffixes
+                afterWithdraw = afterWithdraw.split('거래한')[0];
+                afterWithdraw = afterWithdraw.split('모임원')[0];
+                afterWithdraw = afterWithdraw.split('잔액')[0];
+                
+                // Remove date (MM/DD) and time (HH:mm) from the shop name candidate
+                afterWithdraw = afterWithdraw.replace(/\d{1,2}\/\d{1,2}/g, '');
+                afterWithdraw = afterWithdraw.replace(/\d{1,2}:\d{1,2}/g, '');
+                
+                // Remove leading/trailing formatting characters like '.', ',', '님', or extra spaces
+                shopName = afterWithdraw.replace(/^[.\s님,:]+/, '').replace(/[.\s님,:]+$/, '').trim();
+            }
+        }
+
         if (amount > 0 && shopName) {
             return { amount, shopName, month, day };
         }
