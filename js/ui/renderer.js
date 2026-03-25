@@ -133,8 +133,14 @@ export const uiRenderer = {
                 const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
                 sorted.forEach(([cat, amount]) => {
                     const pct = ((amount / totalExpense) * 100).toFixed(1);
-                    chartContainer.innerHTML += `<div class="stat-bar-container"><div class="stat-info"><span>${cat}</span><span>${pct}%</span></div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div></div>`;
-                    listContainer.innerHTML += `<div class="stat-item"><span class="stat-cat">${cat}</span><span class="stat-amt">₩ ${amount.toLocaleString()}</span></div>`;
+                    chartContainer.innerHTML += `
+                        <div class="stat-bar-container" style="margin-bottom: 8px;">
+                            <div class="stat-info" style="flex-direction: column; align-items: flex-start; gap: 2px;">
+                                <div style="font-weight:600; font-size:14px; color:var(--text-primary);">${cat}</div>
+                                <div style="font-size:12px; color:var(--text-secondary);">₩ ${amount.toLocaleString()} (${pct}%)</div>
+                            </div>
+                            <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div>
+                        </div>`;
                 });
             }
         }
