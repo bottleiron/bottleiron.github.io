@@ -134,16 +134,16 @@ export const uiRenderer = {
                 sorted.forEach(([cat, amount]) => {
                     const pct = ((amount / totalExpense) * 100).toFixed(1);
                     chartContainer.innerHTML += `
-                        <div class="stat-bar-container" style="margin-bottom: 16px;">
-                            <div class="stat-info" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-                                <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <div style="font-weight:700; font-size:15px; color:var(--text-primary);">${cat}</div>
-                                    <div style="font-size:11px; color:var(--text-secondary);">₩ ${amount.toLocaleString()}</div>
+                        <div class="stat-bar-container" style="margin-bottom: 12px;">
+                            <div class="stat-info" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 4px;">
+                                <div style="display: flex; flex-direction: column; gap: 0px;">
+                                    <div style="font-weight:700; font-size:14px; color:var(--text-primary); line-height: 1.2;">${cat}</div>
+                                    <div style="font-size:11px; color:var(--text-secondary); line-height: 1.2;">₩ ${amount.toLocaleString()}</div>
                                 </div>
-                                <div style="font-weight:700; font-size:15px; color:var(--text-primary);">${pct}%</div>
+                                <div style="font-weight:700; font-size:14px; color:var(--text-primary); line-height: 1.2;">${pct}%</div>
                             </div>
-                            <div class="stat-bar-bg" style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-                                <div class="stat-bar-fill" style="width:${pct}%; height: 100%; background: #3b82f6; border-radius: 4px; transition: width 0.5s ease-out;"></div>
+                            <div class="stat-bar-bg" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                                <div class="stat-bar-fill" style="width:${pct}%; height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.5s ease-out;"></div>
                             </div>
                         </div>`;
                 });
