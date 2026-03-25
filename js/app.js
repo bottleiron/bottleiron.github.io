@@ -445,9 +445,13 @@ const app = {
         if (this.pendingTossData) {
             const addPlaceInput = document.getElementById('add-place');
             const addAmountInput = document.getElementById('add-amount');
+            const addCategorySelect = document.getElementById('add-category');
             
             if (addPlaceInput) addPlaceInput.value = this.pendingTossData.shopName;
             if (addAmountInput) addAmountInput.value = this.pendingTossData.amount;
+            if (addCategorySelect && this.pendingTossData.category) {
+                addCategorySelect.value = this.pendingTossData.category;
+            }
             
             // Clear used data
             this.pendingTossData = null;
@@ -761,6 +765,9 @@ const app = {
             const tossResult = this.parseTossNotification(text);
             
             if (tossResult) {
+                // Get predicted category based on history
+                tossResult.category = this.getPredictedCategory(tossResult.shopName);
+
                 const now = new Date();
                 let year = now.getFullYear();
                 let month = tossResult.month || (now.getMonth() + 1);
@@ -776,17 +783,20 @@ const app = {
                 }
 
                 const dateStr = `${year}년 ${month}월 ${day}일`;
+                const catInfo = tossResult.category !== '기타' ? ` (${tossResult.category}?)` : '';
 
-                if (confirm(`${dateStr} 내역이 맞습니까?`)) {
+                if (confirm(`${dateStr} 내역이 맞습니까?${catInfo}`)) {
                     // UI 연동: 모달 띄우기 및 자동 채우기
                     const addPlaceInput = document.getElementById('add-place');
                     const addAmountInput = document.getElementById('add-amount');
+                    const addCategorySelect = document.getElementById('add-category');
                     
                     if (addPlaceInput) addPlaceInput.value = tossResult.shopName;
                     if (addAmountInput) addAmountInput.value = tossResult.amount;
+                    if (addCategorySelect) addCategorySelect.value = tossResult.category;
                     
                     this.openDayModal(year, month, day);
-                    this.appendMessage(`💳 결제 내역을 인식했습니다! 아래에서 카테고리를 선택하고 추가 버튼을 눌러주세요.`, 'bot');
+                    this.appendMessage(`💳 결제 내역을 인식했습니다! 아래에서 추가 버튼을 눌러주세요.`, 'bot');
                 } else {
                     // 저장 후 달력으로 이동
                     this.pendingTossData = tossResult;
@@ -802,6 +812,36 @@ const app = {
         } finally {
             this.hideTyping();
         }
+    },
+
+    getPredictedCategory(shopName) {
+        if (!this.allLedgerData || !shopName) return '기타';
+
+        const target = shopName.trim().replace(/\s+/g, '');
+        
+        // 1. Exact Match Search (most recent first)
+        const exactMatch = this.allLedgerData.find(item => 
+            item.place.trim().replace(/\s+/g, '') === target
+        );
+        if (exactMatch) return exactMatch.category;
+
+        // 2. Keyword/Substring Search
+        const similarMatches = this.allLedgerData.filter(item => {
+            const p = item.place.trim().replace(/\s+/g, '');
+            if (p.length < 2) return false;
+            return target.includes(p) || p.includes(target);
+        });
+
+        if (similarMatches.length > 0) {
+            const counts = {};
+            similarMatches.forEach(m => {
+                const weight = (m.place === shopName) ? 5 : 1;
+                counts[m.category] = (counts[m.category] || 0) + weight;
+            });
+            return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+        }
+
+        return '기타';
     },
 
     parseTossNotification(text) {
