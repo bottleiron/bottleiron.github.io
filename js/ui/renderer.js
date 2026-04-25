@@ -87,6 +87,7 @@ export const uiRenderer = {
         if (label) label.textContent = `${year}년 ${month}월`;
 
         const categoryTotals = {};
+        const categoryItems = {};
         let totalExpense = 0;
         let totalIncome = 0;
         let totalSavings = 0;
@@ -101,6 +102,8 @@ export const uiRenderer = {
                 } else {
                     const cat = item.category || '기타';
                     categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.amount);
+                    if (!categoryItems[cat]) categoryItems[cat] = [];
+                    categoryItems[cat].push(item);
                     totalExpense += Number(item.amount);
                 }
             }
@@ -133,17 +136,32 @@ export const uiRenderer = {
                 const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
                 sorted.forEach(([cat, amount]) => {
                     const pct = ((amount / totalExpense) * 100).toFixed(1);
+                    const itemsHtml = categoryItems[cat]
+                        .sort((a, b) => Number(b.amount) - Number(a.amount))
+                        .map((item, index, arr) => `
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px 0; ${index < arr.length - 1 ? 'border-bottom: 1px solid #e2e8f0;' : ''}">
+                                <div style="display:flex; flex-direction:column;">
+                                    <span style="font-size:13px; color:var(--text-primary);">${item.place || '내역 없음'}</span>
+                                    <span style="font-size:11px; color:var(--text-secondary);">${item.date}</span>
+                                </div>
+                                <span style="font-size:13px; font-weight:600; color:#3b82f6;">₩ ${Number(item.amount).toLocaleString()}</span>
+                            </div>
+                        `).join('');
+
                     chartContainer.innerHTML += `
-                        <div class="stat-bar-container" style="margin-bottom: 12px;">
+                        <div class="stat-bar-container" style="margin-bottom: 12px; cursor: pointer;" onclick="const list = this.querySelector('.category-items-list'); const icon = this.querySelector('.toggle-icon'); if(list.style.display === 'none'){ list.style.display = 'block'; icon.textContent = '▲'; } else { list.style.display = 'none'; icon.textContent = '▼'; }">
                             <div class="stat-info" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 4px;">
                                 <div style="display: flex; flex-direction: column; gap: 0px;">
-                                    <div style="font-weight:700; font-size:14px; color:var(--text-primary); line-height: 1.2;">${cat}</div>
+                                    <div style="font-weight:700; font-size:14px; color:var(--text-primary); line-height: 1.2;">${cat} <span class="toggle-icon" style="font-size:10px; color:#94a3b8; font-weight:normal; margin-left:4px;">▼</span></div>
                                     <div style="font-size:11px; color:var(--text-secondary); line-height: 1.2;">₩ ${amount.toLocaleString()}</div>
                                 </div>
                                 <div style="font-weight:700; font-size:14px; color:var(--text-primary); line-height: 1.2;">${pct}%</div>
                             </div>
-                            <div class="stat-bar-bg" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                            <div class="stat-bar-bg" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 4px;">
                                 <div class="stat-bar-fill" style="width:${pct}%; height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.5s ease-out;"></div>
+                            </div>
+                            <div class="category-items-list" style="display:none; background: #f8fafc; padding: 4px 12px; border-radius: 8px; margin-top: 8px; border: 1px solid #e2e8f0;">
+                                ${itemsHtml}
                             </div>
                         </div>`;
                 });
