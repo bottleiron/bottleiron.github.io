@@ -99,6 +99,7 @@ const app = {
             this._isInitialized = true;
             this.loadSyncQueue();
             this.loadData();
+            this.updatePushIcon();
         }
     },
 
@@ -120,6 +121,27 @@ const app = {
             return;
         }
         await fcmApi.requestPermission(this.githubApi, this.currentUser);
+        this.updatePushIcon();
+    },
+
+    updatePushIcon() {
+        const btn = document.getElementById('push-btn');
+        if (!btn) return;
+        
+        if (!('Notification' in window)) {
+            btn.style.display = 'none';
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            btn.textContent = '🔔';
+            btn.title = '푸시 알림 켜짐';
+            btn.style.opacity = '1';
+        } else {
+            btn.textContent = '🔕';
+            btn.title = '푸시 알림 꺼짐 (켜려면 클릭)';
+            btn.style.opacity = '0.5';
+        }
     },
 
     /**
